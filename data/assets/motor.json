@@ -1,0 +1,6 @@
+{
+  "asset_id": "motor",
+  "asset_type": "Asset",
+  "description": "Generic motor asset. Real instances: Motor_01.",
+  "expected_tag_roles": ["run", "speed", "temperature", "overload"]
+}

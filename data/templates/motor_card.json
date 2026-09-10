@@ -1,0 +1,9 @@
+{
+  "template_id": "motor_card",
+  "description": "Standard motor monitoring card: speed gauge, temperature display, overload status.",
+  "objects": [
+    {"object_type": "GAUGE", "role": "speed", "label_suffix": "Speed"},
+    {"object_type": "VALUE_DISPLAY", "role": "temperature", "label_suffix": "Temperature"},
+    {"object_type": "STATUS_INDICATOR", "role": "overload", "label_suffix": "Overload"}
+  ]
+}

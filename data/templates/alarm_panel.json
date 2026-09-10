@@ -1,0 +1,7 @@
+{
+  "template_id": "alarm_panel",
+  "description": "Standard alarm panel: single ALARM_INDICATOR object listing all active alarms on a screen.",
+  "objects": [
+    {"object_type": "ALARM_INDICATOR", "role": "alarm_summary", "label_suffix": "Active Alarms"}
+  ]
+}

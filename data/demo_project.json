@@ -1,0 +1,65 @@
+{
+  "project": {
+    "name": "Packaging Line 01",
+    "version": "1.0",
+    "description": "Demo packaging conveyor and motor system engineering project."
+  },
+  "tags": [
+    {"name": "Motor_01_Run", "data_type": "BOOL", "description": "Motor running state", "source": "PLC"},
+    {"name": "Motor_01_Speed", "data_type": "REAL", "unit": "RPM", "description": "Motor speed", "source": "PLC"},
+    {"name": "Motor_01_Temperature", "data_type": "REAL", "unit": "C", "description": "Motor temperature", "source": "PLC"},
+    {"name": "Motor_01_Overload", "data_type": "BOOL", "description": "Motor overload state", "source": "PLC"},
+    {"name": "Conveyor_01_Run", "data_type": "BOOL", "description": "Conveyor running state", "source": "PLC"},
+    {"name": "Product_Sensor", "data_type": "BOOL", "description": "Product presence sensor", "source": "PLC"},
+    {"name": "Emergency_Stop", "data_type": "BOOL", "description": "Emergency stop pressed", "source": "PLC"},
+    {"name": "PLC_Communication", "data_type": "BOOL", "description": "PLC communication healthy", "source": "PLC"}
+  ],
+  "screens": [
+    {
+      "id": "dashboard",
+      "name": "Dashboard",
+      "objects": [
+        {"id": "obj_motor_status", "object_type": "STATUS_INDICATOR", "tag": "Motor_01_Run", "label": "Motor 01", "x": 20, "y": 20},
+        {"id": "obj_conveyor_status", "object_type": "STATUS_INDICATOR", "tag": "Conveyor_01_Run", "label": "Conveyor 01", "x": 160, "y": 20},
+        {"id": "obj_comm_status", "object_type": "STATUS_INDICATOR", "tag": "PLC_Communication", "label": "PLC Comms", "x": 300, "y": 20}
+      ]
+    },
+    {
+      "id": "alarms",
+      "name": "Alarms",
+      "objects": [
+        {"id": "obj_alarm_panel", "object_type": "ALARM_INDICATOR", "tag": null, "label": "Active Alarms", "x": 20, "y": 20}
+      ]
+    },
+    {
+      "id": "trends",
+      "name": "Trends",
+      "objects": [
+        {"id": "obj_trend_speed", "object_type": "TREND", "tag": "Motor_01_Speed", "label": "Motor Speed Trend", "x": 20, "y": 20}
+      ]
+    }
+  ],
+  "alarms": [
+    {"id": "alm_overload", "name": "Motor Overload", "tag": "Motor_01_Overload", "condition": "EQ", "threshold": 1, "severity": "HIGH"},
+    {"id": "alm_estop", "name": "Emergency Stop", "tag": "Emergency_Stop", "condition": "EQ", "threshold": 1, "severity": "CRITICAL"},
+    {"id": "alm_comm", "name": "Communication Loss", "tag": "PLC_Communication", "condition": "EQ", "threshold": 0, "severity": "HIGH"},
+    {"id": "alm_sensor", "name": "Product Sensor Fault", "tag": "Product_Sensor", "condition": "EQ", "threshold": 0, "severity": "LOW"}
+  ],
+  "navigation": [
+    {"from_screen": "dashboard", "to_screen": "alarms", "label": "Alarms"},
+    {"from_screen": "dashboard", "to_screen": "trends", "label": "Trends"},
+    {"from_screen": "alarms", "to_screen": "dashboard", "label": "Dashboard"},
+    {"from_screen": "trends", "to_screen": "dashboard", "label": "Dashboard"}
+  ],
+  "scripts": [],
+  "dependencies": [
+    {"source": "obj_motor_status", "target": "Motor_01_Run", "relation": "BINDS_TO"},
+    {"source": "obj_conveyor_status", "target": "Conveyor_01_Run", "relation": "BINDS_TO"},
+    {"source": "obj_comm_status", "target": "PLC_Communication", "relation": "BINDS_TO"},
+    {"source": "obj_trend_speed", "target": "Motor_01_Speed", "relation": "BINDS_TO"},
+    {"source": "alm_overload", "target": "Motor_01_Overload", "relation": "TRIGGERS"},
+    {"source": "alm_estop", "target": "Emergency_Stop", "relation": "TRIGGERS"},
+    {"source": "alm_comm", "target": "PLC_Communication", "relation": "TRIGGERS"},
+    {"source": "alm_sensor", "target": "Product_Sensor", "relation": "TRIGGERS"}
+  ]
+}

@@ -1,0 +1,5 @@
+{
+  "template_id": "navigation_template",
+  "description": "Every newly generated screen must receive a bidirectional navigation link with the Dashboard screen.",
+  "default_hub_screen": "dashboard"
+}

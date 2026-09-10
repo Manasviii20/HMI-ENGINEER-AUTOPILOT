@@ -1,0 +1,6 @@
+{
+  "asset_id": "sensor",
+  "asset_type": "Asset",
+  "description": "Generic sensor asset. Real instances: Product_Sensor.",
+  "expected_tag_roles": ["state"]
+}

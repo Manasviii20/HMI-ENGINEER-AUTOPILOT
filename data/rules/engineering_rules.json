@@ -1,0 +1,9 @@
+[
+  {"id": "RULE_OBJECT_TAG_BINDING", "text": "Every object requiring a tag must have a valid tag."},
+  {"id": "RULE_ALARM_TAG", "text": "Every alarm must reference an existing tag."},
+  {"id": "RULE_NAV_TARGET", "text": "Every navigation target must reference an existing screen."},
+  {"id": "RULE_TEMP_ALARM_NUMERIC", "text": "Temperature alarms require a numeric (REAL/INT) temperature tag."},
+  {"id": "RULE_ESTOP_STOPS_MOTOR", "text": "Emergency stop must result in motor stopped state."},
+  {"id": "RULE_COMM_LOSS_ALARM", "text": "Communication loss must generate a communication alarm."},
+  {"id": "RULE_SCREEN_NAV_PATH", "text": "Every generated screen must have a navigation path."}
+]

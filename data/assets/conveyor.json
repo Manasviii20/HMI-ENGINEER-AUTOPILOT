@@ -1,0 +1,6 @@
+{
+  "asset_id": "conveyor",
+  "asset_type": "Asset",
+  "description": "Generic conveyor asset. Real instances: Conveyor_01.",
+  "expected_tag_roles": ["run"]
+}
