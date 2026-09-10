@@ -43,6 +43,20 @@ def test_impact_endpoint_known_and_unknown_node():
     assert res_unknown.json()["status"] == "UNKNOWN"
 
 
+def test_impact_direction_is_correct_for_a_tag():
+    """A Tag has no outgoing edges in this graph (Object --BINDS_TO--> Tag,
+    Alarm --TRIGGERS--> Tag), so changing a tag has zero upstream deps of its
+    own, but real downstream impact: the objects/screens/alarms that use it."""
+    client = _fresh_client()
+    res = client.get("/api/engineering/impact", params={"node_id": "Motor_01_Speed"})
+    body = res.json()
+    assert body["this_depends_on"] == []
+    depends_on_ids = {d["id"] for d in body["depends_on_this"]}
+    assert "obj_trend_speed" in depends_on_ids  # the Trend object on the Trends screen binds to this tag
+    kinds = {d["kind"] for d in body["depends_on_this"]}
+    assert "Object" in kinds
+
+
 def test_full_plan_apply_validate_approve_export_flow():
     client = _fresh_client()
 

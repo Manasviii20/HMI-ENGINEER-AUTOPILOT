@@ -5,6 +5,7 @@ import { ThemeToggle } from "./components/ThemeToggle";
 import { useTheme } from "./hooks/useTheme";
 import { Dashboard } from "./pages/Dashboard";
 import { Engineering } from "./pages/Engineering";
+import { ProjectGraph } from "./pages/ProjectGraph";
 import { VirtualHmi } from "./pages/VirtualHmi";
 import { Validation } from "./pages/Validation";
 import { Review } from "./pages/Review";
@@ -13,6 +14,7 @@ import { Scripts } from "./pages/Scripts";
 import { Migration } from "./pages/Migration";
 import { Mentor } from "./pages/Mentor";
 import { Logs } from "./pages/Logs";
+import { DataFactory } from "./pages/DataFactory";
 
 function GridIcon() {
   return (
@@ -93,16 +95,36 @@ function ListIcon() {
     </svg>
   );
 }
+function ShareIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+      <circle cx="5" cy="12" r="2.5" stroke="currentColor" strokeWidth="1.8" />
+      <circle cx="18" cy="6" r="2.5" stroke="currentColor" strokeWidth="1.8" />
+      <circle cx="18" cy="18" r="2.5" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M7.2 11L15.8 6.8M7.2 13L15.8 17.2" stroke="currentColor" strokeWidth="1.6" />
+    </svg>
+  );
+}
+function FactoryIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+      <path d="M3 20V11l5 3.5V11l5 3.5V9l6 4v7H3z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+      <path d="M7 20v-3M12 20v-3M17 20v-3" stroke="currentColor" strokeWidth="1.6" />
+    </svg>
+  );
+}
 
 const NAV = [
-  { to: "/", label: "Dashboard", icon: GridIcon },
+  { to: "/", label: "Overview", icon: GridIcon },
   { to: "/engineering", label: "Engineering", icon: CpuIcon },
+  { to: "/graph", label: "Project Graph", icon: ShareIcon },
   { to: "/hmi", label: "Virtual HMI", icon: MonitorIcon },
   { to: "/validation", label: "Validation", icon: ShieldCheckIcon },
   { to: "/review", label: "Review / Export", icon: ClipboardCheckIcon },
 ];
 
 const TOOLS_NAV = [
+  { to: "/factory", label: "Data Factory", icon: FactoryIcon },
   { to: "/builders", label: "Builders", icon: WrenchIcon },
   { to: "/scripts", label: "Scripts", icon: CodeIcon },
   { to: "/migration", label: "Migration", icon: SwapIcon },
@@ -174,7 +196,7 @@ function Shell() {
       </header>
       <nav className="flex gap-1 px-6 py-1.5 border-b border-[var(--border)] bg-[var(--panel-2)] overflow-x-auto">
         <span className="text-[10px] uppercase tracking-wider text-[var(--text-dim)] flex items-center pr-2 shrink-0">
-          Tools
+          Engineering Tools
         </span>
         {TOOLS_NAV.map((n) => (
           <NavLink
@@ -210,9 +232,11 @@ function Shell() {
           <Routes location={location}>
             <Route path="/" element={<Dashboard />} />
             <Route path="/engineering" element={<Engineering />} />
+            <Route path="/graph" element={<ProjectGraph />} />
             <Route path="/hmi" element={<VirtualHmi />} />
             <Route path="/validation" element={<Validation />} />
             <Route path="/review" element={<Review />} />
+            <Route path="/factory" element={<DataFactory />} />
             <Route path="/builders" element={<Builders />} />
             <Route path="/scripts" element={<Scripts />} />
             <Route path="/migration" element={<Migration />} />

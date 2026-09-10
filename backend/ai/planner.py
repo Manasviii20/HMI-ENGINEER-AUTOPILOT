@@ -85,7 +85,8 @@ EXPLICIT_TYPE_WORDS: dict[str, str] = {
 
 
 def _tokens(text: str) -> list[str]:
-    return re.findall(r"[a-z0-9]+", text.lower())
+    spaced = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", " ", text)
+    return re.findall(r"[a-z0-9]+", spaced.lower())
 
 
 def _content_tokens(text: str) -> set[str]:
@@ -93,7 +94,8 @@ def _content_tokens(text: str) -> set[str]:
 
 
 def _tag_tokens(tag: Tag) -> set[str]:
-    return {t for t in re.split(r"[^a-z0-9]+", tag.name.lower()) if t and not t.isdigit()}
+    spaced = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", " ", tag.name)
+    return {t for t in re.split(r"[^a-zA-Z0-9]+", spaced.lower()) if t and not t.isdigit()}
 
 
 def _best_matching_tag(clause_tokens: set[str], tags: list[Tag]) -> Tag | None:

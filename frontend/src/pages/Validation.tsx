@@ -7,7 +7,7 @@ import { useProject } from "../services/ProjectContext";
 const TAG_REQUIRING_TYPES = new Set(["GAUGE", "VALUE_DISPLAY", "TREND"]);
 
 export function Validation() {
-  const { project, validation, refreshValidation, refreshProject } = useProject();
+  const { project, validation, refreshValidation, refreshProject, pushActivity } = useProject();
   const [breaking, setBreaking] = useState(false);
   const [fixing, setFixing] = useState(false);
   const [revalidating, setRevalidating] = useState(false);
@@ -56,6 +56,11 @@ export function Validation() {
       setCorrection(res);
       await refreshValidation();
       await refreshProject();
+      const fixedCount = res.cycles.flatMap((c) => c.actions).filter((a) => a.status === "APPLIED").length;
+      pushActivity(
+        "correction",
+        `AI self-correction: ${fixedCount} fix(es) applied -- ${res.final_status === "PASS" ? "all tests now PASS" : "still requires engineer review"}`
+      );
     } catch {
       /* toasted globally by api.ts */
     } finally {

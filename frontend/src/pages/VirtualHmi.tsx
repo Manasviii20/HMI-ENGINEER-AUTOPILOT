@@ -72,7 +72,7 @@ function ObjectTile({
 }
 
 export function VirtualHmi() {
-  const { project, refreshValidation } = useProject();
+  const { project, refreshValidation, pushActivity, hasSimulationActivity } = useProject();
   const [activeScreen, setActiveScreen] = useState<string>("dashboard");
   const [tags, setTags] = useState<Record<string, unknown>>({});
   const [scenario, setScenario] = useState("NORMAL");
@@ -81,9 +81,14 @@ export function VirtualHmi() {
   const connRef = useRef<SimulationConnection | null>(null);
 
   useEffect(() => {
-    api.simulationStart().catch(() => {
-      /* toasted globally by api.ts; simulator may already be running */
-    });
+    api
+      .simulationStart()
+      .then(() => {
+        if (!hasSimulationActivity) pushActivity("simulation", "Virtual machine simulation started");
+      })
+      .catch(() => {
+        /* toasted globally by api.ts; simulator may already be running */
+      });
     const conn = simulationSocket(
       (data) => {
         setTags(data.tags ?? {});
@@ -106,6 +111,9 @@ export function VirtualHmi() {
     try {
       await api.simulationScenario(name);
       await refreshValidation();
+      if (name !== "NORMAL") {
+        pushActivity("simulation", `Fault injected: ${name.replace(/_/g, " ")}`);
+      }
     } catch {
       /* toasted globally by api.ts */
     } finally {
@@ -133,7 +141,7 @@ export function VirtualHmi() {
   return (
     <div className="flex flex-col gap-6">
       <Panel
-        title="Simulation Controls"
+        title="Inject Fault"
         right={
           <div className="flex items-center gap-3 text-xs text-[var(--text-dim)]">
             <span className="flex items-center gap-1.5">
@@ -151,6 +159,10 @@ export function VirtualHmi() {
           </div>
         }
       >
+        <p className="text-xs text-[var(--text-dim)] mb-3">
+          Select a scenario to change the virtual machine's real state. Watch it propagate: tag values
+          change → the HMI below reacts live → alarms fire → the Validation page can catch anything wrong.
+        </p>
         <div className="flex gap-2 flex-wrap">
           {SCENARIOS.map((s) => (
             <button
@@ -167,6 +179,35 @@ export function VirtualHmi() {
             </button>
           ))}
         </div>
+
+        {scenario !== "NORMAL" && (
+          <div key={scenario} className="anim-rise-in mt-4 pt-3 border-t border-[var(--border)]">
+            <div className="text-[10px] uppercase tracking-wider text-[var(--text-dim)] mb-2">Cause → Effect</div>
+            <div className="flex items-center gap-2 flex-wrap text-xs mono">
+              <span className="px-2 py-1 rounded bg-red-500/10 border border-red-500/30 text-red-400">
+                FAULT: {scenario.replace(/_/g, " ")}
+              </span>
+              <span className="text-[var(--text-dim)]">→</span>
+              <span className="px-2 py-1 rounded bg-[var(--panel-2)] border border-[var(--border)]">
+                Tags updated
+              </span>
+              <span className="text-[var(--text-dim)]">→</span>
+              <span className="px-2 py-1 rounded bg-[var(--panel-2)] border border-[var(--border)]">
+                HMI reacted
+              </span>
+              <span className="text-[var(--text-dim)]">→</span>
+              {activeAlarms.length > 0 ? (
+                <span className="px-2 py-1 rounded bg-red-500/15 border border-red-500/40 text-red-400 anim-pulse">
+                  {activeAlarms.length} alarm(s) ACTIVE
+                </span>
+              ) : (
+                <span className="px-2 py-1 rounded bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">
+                  no alarm triggered
+                </span>
+              )}
+            </div>
+          </div>
+        )}
       </Panel>
 
       <Panel

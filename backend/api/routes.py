@@ -10,6 +10,7 @@ from fastapi.responses import PlainTextResponse
 from backend.api.schemas import (
     LoadProjectRequest, PlanRequest, ApplyRequest, ScenarioRequest,
     ApproveRequest, BreakBindingRequest, ScriptRequest, ImportTagsRequest, MentorRequest,
+    FactoryRunRequest,
 )
 from backend.api import store
 from backend.parser.project_parser import parse_project_dict, summarize
@@ -27,6 +28,7 @@ from backend.simulator.log_analyzer import analyze_log
 from backend.scripts.script_generator import generate_script
 from backend.migration.migration_assistant import export_tags_csv, import_tags_csv, import_tags_json
 from backend.mentor.engineering_mentor import ask_mentor
+from backend.factory.runner import run_factory
 
 router = APIRouter(prefix="/api")
 
@@ -307,3 +309,10 @@ def get_logs(limit: int = 50):
 @router.get("/logs/analyze")
 def analyze_logs():
     return analyze_log(list(simulator.log))
+
+
+# --- Synthetic Engineering Data Factory --------------------------------------
+
+@router.post("/factory/run")
+def factory_run(req: FactoryRunRequest):
+    return run_factory(count=req.count, seed=req.seed, max_defects=req.max_defects)

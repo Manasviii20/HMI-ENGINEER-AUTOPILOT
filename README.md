@@ -77,10 +77,11 @@ Existing HMI Project + Templates
 | `backend/graph` | Build/query the NetworkX dependency graph | No |
 | `backend/ai/planner.py` | Requirement → structured `EngineeringPlan` | Yes (or deterministic mock) |
 | `backend/ai/self_correction.py` | Detect issues → propose grounded fixes | Rule-based (LLM-ready) |
-| `backend/ai/impact_analyzer.py` | Graph-based change impact | No |
+| `backend/ai/impact_analyzer.py` | Graph-based change impact (upstream deps / downstream impact) | No |
 | `backend/hmi/*` | Deterministically executes plans against the project | No |
-| `backend/simulator` | Virtual packaging conveyor / motor machine state | No |
+| `backend/simulator` | Virtual packaging conveyor / motor machine state + live event log | No |
 | `backend/validation` | Structural + behavioral + scenario validation | No |
+| `backend/factory` | Synthetic Engineering Data Factory (variant generation, defect injection) | No |
 | `backend/api` | FastAPI REST + WebSocket surface | — |
 | `frontend` | React/TypeScript/Tailwind industrial UI | — |
 
@@ -96,32 +97,41 @@ Existing HMI Project + Templates
 The bundled demo project is **Packaging Line 01**: a motor/conveyor system
 with 8 tags, 3 screens, 4 alarms, and a navigation hierarchy.
 
-1. **Load Project** — the app loads `data/demo_project.json` on startup.
-2. **Parse** — Dashboard shows detected tags, screens, objects, alarms.
-3. **Project Graph** — Engineering page renders the NetworkX dependency
-   graph (Screen → Object → Tag → Alarm columns with relationship lines).
-4. **Requirement** — enter (pre-filled):
+Primary navigation follows the product's actual lifecycle: **Overview →
+Engineering → Project Graph → Virtual HMI → Validation → Review/Export**.
+Secondary "Engineering Tools" (Data Factory, Builders, Scripts, Migration,
+Mentor, System Log) sit in a collapsed sub-nav so they don't compete with
+that core story.
+
+1. **Overview** — the Engineering Control Center. A dominant 8-stage
+   pipeline (Input → Project Graph → AI Generation → Simulation →
+   Validation → Self-Correction → Approval → Export) shows exactly where
+   this project is right now, computed from real state — not decorative.
+   A live activity feed lists every real engineering action taken.
+2. **Engineering** — enter a requirement (pre-filled):
    > "Add a motor overview screen showing motor speed, temperature and
    > overload status. Add a high-temperature alarm and make the screen
    > accessible from main navigation."
-5. **AI Plan** — structured `EngineeringPlan` JSON is generated and shown,
-   grounded only in existing tags/screens.
-6. **Generate** — plan is applied deterministically; the new screen,
-   objects, alarm and navigation link appear in the project.
-7. **Virtual HMI** — open the generated "Motor Overview" screen; live
-   values stream over WebSocket from the simulator.
-8. **Run scenarios** — NORMAL, HIGH_TEMPERATURE, MOTOR_OVERLOAD,
-   EMERGENCY_STOP, COMMUNICATION_LOSS. Watch alarms fire live.
-9. **Inject Broken Binding** (Validation page) — intentionally removes a
-   tag binding from the generated gauge object.
-10. **Validation detects it** — `MISSING_BINDING` structural issue, overall
-    status FAILS.
-11. **AI Auto-Fix** — proposes and applies a grounded correction (re-binds
-    to the existing `Motor_01_Speed` tag because it matches the object's
-    semantic role), re-validates — PASS.
-12. **Approve** — engineer approves (only allowed once validation PASSes).
-13. **Export** — downloads a `Generated HMI Engineering Project Package`
-    (JSON files + validation/simulation reports, zipped).
+   The AI planner produces a structured `EngineeringPlan`, grounded only
+   in existing tags/screens; apply it and the new screen/objects/alarm/nav
+   link are generated deterministically.
+3. **Project Graph** — the hero dependency view: Screen → Object → Tag →
+   Alarm relationships from NetworkX, live. Click any node to see exactly
+   what it depends on and what would be affected if it changed — the
+   impact set is highlighted and traced across the graph, not just direct
+   neighbors.
+4. **Virtual HMI** — an interactive device topology (drag devices, click
+   to inspect live values) plus the generated screens with live tag
+   values streamed over WebSocket. **Inject Fault**: NORMAL,
+   HIGH_TEMPERATURE, MOTOR_OVERLOAD, EMERGENCY_STOP, COMMUNICATION_LOSS —
+   a cause → effect trace shows the fault propagating through tags, the
+   HMI, and alarms.
+5. **Validation** — Inject Broken Binding intentionally removes a tag
+   binding; validation detects `MISSING_BINDING` and FAILS; AI Auto-Fix
+   proposes and applies a grounded correction, re-validates — PASS.
+6. **Review / Export** — Approve (only allowed once validation PASSes),
+   then export a `Generated HMI Engineering Project Package` (JSON files +
+   validation/simulation reports, zipped).
 
 ## 7. Installation
 
@@ -215,13 +225,15 @@ It is **not** a native Schneider EOTE project file.
 
 ## 11.5 Extended tool suite
 
-Five more tools, reachable from the "Tools" sub-nav, extend the core
+Six more tools, reachable from the collapsed "Engineering Tools" sub-nav so
+they don't compete with the core Overview → Export story, extend the
 workflow. Each is scoped honestly to what this project can actually verify
 — see 12. Limitations for exactly what real EOTE access would additionally
 unlock for each.
 
 | Tool | What it does | Honest scope |
 |---|---|---|
+| **Data Factory** | Generates many synthetic HMI project variants across 5 machine templates, injects seeded structural defects, and runs them through the real validator + self-correction engine, reporting aggregate counts | Every number is directly counted from real validator runs — not a trained model. Behavioral/scenario validation is skipped here since it's hardcoded to the demo machine's tags (structural-only evaluation) |
 | **Builders** | Direct forms for creating alarms and navigation links, using the same deterministic executor as the AI planner (`POST /api/engineering/apply`) | Neutral schema, not a verified EOTE alarm-config/navigation-object field layout |
 | **Scripts** | Generates event-handler pseudocode per screen/alarm/object, grounded only in real tags | IEC 61131-3 Structured-Text *style* (a real, public, vendor-neutral standard) — **not** EOTE's proprietary scripting language/runtime |
 | **Migration** | Imports/exports a generic CSV or JSON tag list into the neutral project | Tag-metadata migration only — **not** a native EOTE project file migration |
@@ -230,8 +242,8 @@ unlock for each.
 
 Backend modules: `backend/scripts/script_generator.py`,
 `backend/migration/migration_assistant.py`, `backend/mentor/engineering_mentor.py`,
-`backend/simulator/log_analyzer.py`. 19 dedicated tests in
-`tests/test_new_features.py`.
+`backend/simulator/log_analyzer.py`, `backend/factory/*`. 19 dedicated tests in
+`tests/test_new_features.py` plus 20 in `tests/test_factory.py`.
 
 ## 12. Limitations
 
@@ -293,21 +305,24 @@ hmi-engineering-autopilot/
 │   ├── parser/                  # deterministic project JSON parser
 │   ├── graph/                   # NetworkX graph builder + queries
 │   ├── hmi/                     # deterministic plan executor / generators
-│   ├── simulator/                # virtual machine state + scenarios
+│   ├── simulator/                # virtual machine state + scenarios + live event log
 │   ├── validation/               # structural + behavioral + scenario tests
+│   ├── factory/                  # Synthetic Engineering Data Factory (templates, defect injection, runner)
+│   ├── scripts/, migration/, mentor/  # Engineering Tools backends
 │   └── models/                  # Pydantic schemas (project + engineering plan)
 ├── frontend/
 │   └── src/
-│       ├── pages/                # Dashboard, Engineering, VirtualHmi, Validation, Review
-│       ├── components/           # GraphView, Panel, StatusPill
-│       └── services/              # API client, ProjectContext
+│       ├── pages/                # Dashboard (Overview), Engineering, ProjectGraph, VirtualHmi,
+│       │                         # Validation, Review, DataFactory, Builders, Scripts, Migration, Mentor, Logs
+│       ├── components/           # GraphView, PlantScene, PipelineStepper, Panel, StatusPill
+│       └── services/              # API client, ProjectContext (project state + activity log)
 ├── data/
 │   ├── demo_project.json         # Packaging Line 01 demo project
 │   ├── templates/                # motor_card, alarm_panel, navigation_template
 │   ├── assets/                   # motor, conveyor, sensor asset definitions
 │   └── rules/                    # deterministic engineering rules
 ├── generated/                    # export output (gitignored except .gitkeep)
-├── tests/                        # pytest suite (20 tests)
+├── tests/                        # pytest suite (81 tests)
 ├── requirements.txt
 ├── .env.example
 └── README.md

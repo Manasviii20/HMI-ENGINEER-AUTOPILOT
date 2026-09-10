@@ -5,6 +5,7 @@ LLM, when configured) but are ALWAYS re-validated against actual project data
 before being applied. Max 3 correction cycles to prevent infinite loops.
 """
 import re
+from typing import Callable
 
 from backend.models.project import Project
 from backend.models.engineering import CorrectionPlan, CorrectionAction
@@ -16,9 +17,12 @@ MAX_CYCLES = 3
 
 def _tokens(text: str) -> set[str]:
     """Splits a label or tag name into lowercase word tokens, so 'Motor Speed
-    Trend' and 'Motor_01_Speed' both yield overlapping tokens like 'motor'
-    and 'speed' regardless of separator (space, underscore, digits)."""
-    return {t for t in re.split(r"[^a-z0-9]+", text.lower()) if t and not t.isdigit()}
+    Trend', 'Motor_01_Speed', and camelCase tags like 'DischargePressure' all
+    yield overlapping tokens ('motor', 'speed', 'discharge', 'pressure')
+    regardless of separator (space, underscore, digits, or a bare case
+    change)."""
+    spaced = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", " ", text)
+    return {t for t in re.split(r"[^a-zA-Z0-9]+", spaced.lower()) if t and not t.isdigit()}
 
 
 def _best_matching_tag(project: Project, obj) -> str | None:
@@ -73,10 +77,17 @@ def _propose_correction(project: Project, issue: dict) -> CorrectionPlan | None:
     return None
 
 
-def run_self_correction(project: Project) -> dict:
+def run_self_correction(project: Project, validate_fn: Callable[[Project], dict] | None = None) -> dict:
+    """`validate_fn` defaults to the full validator (structural + behavioral),
+    which is correct for the main app's demo project. Callers working with a
+    project whose tags don't match the behavioral validator's hardcoded demo
+    tag names (e.g. the Synthetic Engineering Data Factory) can pass a
+    structural-only validate_fn so convergence is judged on what was actually
+    injected/correctable, not on an unrelated hardcoded rule."""
+    validate = validate_fn or run_full_validation
     cycles = []
     for cycle_num in range(1, MAX_CYCLES + 1):
-        result = run_full_validation(project)
+        result = validate(project)
         if result["status"] == "PASS":
             cycles.append({"cycle": cycle_num, "status": "PASS", "actions": []})
             break
@@ -99,7 +110,7 @@ def run_self_correction(project: Project) -> dict:
         if not any_applied:
             break
 
-    final_validation = run_full_validation(project)
+    final_validation = validate(project)
     return {
         "cycles": cycles,
         "final_status": final_validation["status"],

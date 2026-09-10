@@ -5,7 +5,7 @@ import { api } from "../services/api";
 import { useProject } from "../services/ProjectContext";
 
 export function Review() {
-  const { summary, validation, approved, setApproved } = useProject();
+  const { summary, validation, approved, setApproved, setExported, pushActivity } = useProject();
   const [approving, setApproving] = useState(false);
   const [approveError, setApproveError] = useState<string | null>(null);
   const [exportResult, setExportResult] = useState<{ files: string[]; zip: string } | null>(null);
@@ -17,6 +17,7 @@ export function Review() {
     try {
       await api.approve();
       setApproved(true);
+      pushActivity("manual", "Engineer approved the validated project");
     } catch (e) {
       setApproveError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -29,6 +30,8 @@ export function Review() {
     try {
       const res = await api.exportProject();
       setExportResult({ files: res.files, zip: res.zip });
+      setExported(true);
+      pushActivity("manual", `Exported validated project package (${res.files.length} files)`);
     } catch {
       /* toasted globally by api.ts */
     } finally {

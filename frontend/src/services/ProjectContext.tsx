@@ -1,6 +1,13 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { api, type Project, type ProjectSummary, type ValidationResult } from "./api";
 
+export interface ActivityEntry {
+  id: number;
+  ts: number;
+  stage: "plan" | "generate" | "correction" | "simulation" | "manual";
+  text: string;
+}
+
 interface ProjectContextValue {
   projectId: string;
   project: Project | null;
@@ -10,9 +17,16 @@ interface ProjectContextValue {
   loading: boolean;
   error: string | null;
   backendOnline: boolean | null; // null = not checked yet
+  activity: ActivityEntry[];
+  exported: boolean;
+  hasEngineeringActivity: boolean;
+  hasCorrectionActivity: boolean;
+  hasSimulationActivity: boolean;
   refreshProject: () => Promise<void>;
   refreshValidation: () => Promise<void>;
   setApproved: (v: boolean) => void;
+  pushActivity: (stage: ActivityEntry["stage"], text: string) => void;
+  setExported: (v: boolean) => void;
 }
 
 const Ctx = createContext<ProjectContextValue | null>(null);
@@ -25,8 +39,11 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [backendOnline, setBackendOnline] = useState<boolean | null>(null);
+  const [activity, setActivity] = useState<ActivityEntry[]>([]);
+  const [exported, setExported] = useState(false);
   const projectId = "demo";
   const initialized = useRef(false);
+  const activityId = useRef(0);
 
   const refreshProject = useCallback(async () => {
     const res = await api.getProject(projectId);
@@ -38,6 +55,11 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   const refreshValidation = useCallback(async () => {
     const res = await api.getValidation(projectId);
     setValidation(res);
+  }, []);
+
+  const pushActivity = useCallback((stage: ActivityEntry["stage"], text: string) => {
+    activityId.current += 1;
+    setActivity((prev) => [{ id: activityId.current, ts: Date.now(), stage, text }, ...prev].slice(0, 30));
   }, []);
 
   useEffect(() => {
@@ -67,6 +89,10 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     })();
   }, [refreshProject, refreshValidation]);
 
+  const hasEngineeringActivity = activity.some((a) => a.stage === "generate");
+  const hasCorrectionActivity = activity.some((a) => a.stage === "correction");
+  const hasSimulationActivity = activity.some((a) => a.stage === "simulation");
+
   return (
     <Ctx.Provider
       value={{
@@ -78,9 +104,16 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         loading,
         error,
         backendOnline,
+        activity,
+        exported,
+        hasEngineeringActivity,
+        hasCorrectionActivity,
+        hasSimulationActivity,
         refreshProject,
         refreshValidation,
         setApproved: setApprovedState,
+        pushActivity,
+        setExported,
       }}
     >
       {children}

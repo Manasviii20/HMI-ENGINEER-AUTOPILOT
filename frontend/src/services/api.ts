@@ -223,9 +223,15 @@ export const api = {
   getGraph: (project_id = "demo") => req<GraphData>(`/projects/${project_id}/graph`),
 
   getImpact: (node_id: string, project_id = "demo") =>
-    req<{ node: string; status: "OK" | "UNKNOWN"; affected_count?: number; affected?: { id: string; kind: string }[] }>(
-      `/engineering/impact?node_id=${encodeURIComponent(node_id)}&project_id=${project_id}`
-    ),
+    req<{
+      node: string;
+      kind?: string;
+      status: "OK" | "UNKNOWN";
+      affected_count?: number;
+      affected?: { id: string; kind: string }[];
+      depends_on_this?: { id: string; kind: string }[];
+      this_depends_on?: { id: string; kind: string }[];
+    }>(`/engineering/impact?node_id=${encodeURIComponent(node_id)}&project_id=${project_id}`),
 
   plan: (requirement: string, project_id = "demo") =>
     req<{ plan: EngineeringPlan; mock_mode: boolean }>("/engineering/plan", {
@@ -307,7 +313,40 @@ export const api = {
   getLogs: (limit = 50) => req<{ events: LogEvent[]; total: number }>(`/logs?limit=${limit}`),
 
   analyzeLogs: () => req<LogAnalysis>("/logs/analyze"),
+
+  // --- Synthetic Engineering Data Factory ---
+  runFactory: (count: number, seed = 42, max_defects = 2) =>
+    req<FactoryResult>("/factory/run", {
+      method: "POST",
+      body: JSON.stringify({ count, seed, max_defects }),
+    }),
 };
+
+export interface FactoryVariant {
+  id: string;
+  machine_type: string;
+  project_name: string;
+  tag_count: number;
+  screen_count: number;
+  alarm_count: number;
+  defects_injected: { type: string; detail: string }[];
+  issues_before: number;
+  issues_after: number;
+  final_status: "PASS" | "FAILED";
+}
+export interface FactoryResult {
+  generated: number;
+  validated: number;
+  defective_variants: number;
+  clean_variants: number;
+  total_defects_injected: number;
+  defect_type_counts: Record<string, number>;
+  auto_corrected: number;
+  needs_review: number;
+  machine_type_counts: Record<string, number>;
+  seed: number;
+  variants: FactoryVariant[];
+}
 
 export interface ScriptTargetOption {
   target_type: "object" | "alarm" | "screen";

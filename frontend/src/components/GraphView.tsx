@@ -13,10 +13,16 @@ export function GraphView({
   graph,
   onNodeClick,
   selectedNode,
+  impactNodeIds,
 }: {
   graph: GraphData;
   onNodeClick?: (nodeId: string) => void;
   selectedNode?: string | null;
+  /** When provided (e.g. from the Change Impact Analysis result), overrides
+   * the default direct-neighbor highlight with the full propagated
+   * ancestor+descendant impact set -- so a change is visibly traced across
+   * multiple hops, not just to immediate neighbors. */
+  impactNodeIds?: Set<string> | null;
 }) {
   const layout = useMemo(() => {
     const colWidth = 240;
@@ -47,7 +53,7 @@ export function GraphView({
     return { positions, width, height, colX };
   }, [graph]);
 
-  const connectedNodeIds = useMemo(() => {
+  const directNeighbors = useMemo(() => {
     if (!selectedNode) return null;
     const ids = new Set<string>([selectedNode]);
     graph.edges.forEach((e) => {
@@ -56,6 +62,8 @@ export function GraphView({
     });
     return ids;
   }, [graph.edges, selectedNode]);
+
+  const connectedNodeIds = impactNodeIds ?? directNeighbors;
 
   // key changes whenever the graph structure changes (e.g. after "Apply Plan"
   // adds a screen), so the draw-in animation replays to show what's new.
@@ -72,7 +80,11 @@ export function GraphView({
         ))}
         <span className="flex items-center gap-1.5 ml-auto">
           <span className="w-4 h-0.5" style={{ background: "var(--accent)" }} />
-          {selectedNode ? "connected to selected node" : "dependency link -- click a node to trace it"}
+          {impactNodeIds
+            ? "propagated change impact"
+            : selectedNode
+            ? "connected to selected node"
+            : "dependency link -- click a node to trace it"}
         </span>
       </div>
       <div className="overflow-auto">

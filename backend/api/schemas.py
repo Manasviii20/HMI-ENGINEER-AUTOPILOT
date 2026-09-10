@@ -46,3 +46,9 @@ class ImportTagsRequest(BaseModel):
 class MentorRequest(BaseModel):
     project_id: str = "demo"
     question: str
+
+
+class FactoryRunRequest(BaseModel):
+    count: int = 50
+    seed: int = 42
+    max_defects: int = 2
