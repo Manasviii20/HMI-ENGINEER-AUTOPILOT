@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { api, type Project, type ProjectSummary, type ValidationResult } from "./api";
 
 interface ProjectContextValue {
@@ -9,6 +9,7 @@ interface ProjectContextValue {
   approved: boolean;
   loading: boolean;
   error: string | null;
+  backendOnline: boolean | null; // null = not checked yet
   refreshProject: () => Promise<void>;
   refreshValidation: () => Promise<void>;
   setApproved: (v: boolean) => void;
@@ -20,15 +21,18 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   const [project, setProject] = useState<Project | null>(null);
   const [summary, setSummary] = useState<ProjectSummary | null>(null);
   const [validation, setValidation] = useState<ValidationResult | null>(null);
-  const [approved, setApproved] = useState(false);
+  const [approved, setApprovedState] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [backendOnline, setBackendOnline] = useState<boolean | null>(null);
   const projectId = "demo";
+  const initialized = useRef(false);
 
   const refreshProject = useCallback(async () => {
     const res = await api.getProject(projectId);
     setProject(res.project);
     setSummary(res.summary);
+    setApprovedState(res.approved);
   }, []);
 
   const refreshValidation = useCallback(async () => {
@@ -37,13 +41,26 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    // React StrictMode double-invokes effects in dev; guard so we only
+    // load once per mount and don't race two concurrent /projects/load calls.
+    if (initialized.current) return;
+    initialized.current = true;
+
     (async () => {
+      try {
+        await api.health();
+        setBackendOnline(true);
+      } catch {
+        setBackendOnline(false);
+      }
       try {
         await api.loadProject(projectId);
         await refreshProject();
         await refreshValidation();
+        setBackendOnline(true);
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e));
+        setBackendOnline(false);
       } finally {
         setLoading(false);
       }
@@ -60,9 +77,10 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         approved,
         loading,
         error,
+        backendOnline,
         refreshProject,
         refreshValidation,
-        setApproved,
+        setApproved: setApprovedState,
       }}
     >
       {children}

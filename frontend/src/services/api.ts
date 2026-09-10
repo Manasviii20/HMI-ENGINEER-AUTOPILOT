@@ -1,15 +1,57 @@
+import { pushToast } from "./toast";
+
 const BASE = "/api";
 
-async function req<T>(path: string, opts?: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
-    headers: { "Content-Type": "application/json" },
-    ...opts,
-  });
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`${res.status} ${res.statusText}: ${text}`);
+function friendlyMessage(e: unknown): string {
+  if (e instanceof TypeError) {
+    return "Cannot reach the backend API. Is it running on http://localhost:8000?";
   }
-  return res.json();
+  return e instanceof Error ? e.message : String(e);
+}
+
+async function req<T>(path: string, opts?: RequestInit): Promise<T> {
+  let res: Response;
+  try {
+    res = await fetch(`${BASE}${path}`, {
+      headers: { "Content-Type": "application/json" },
+      ...opts,
+    });
+  } catch (e) {
+    const msg = friendlyMessage(e);
+    pushToast("error", msg);
+    throw new Error(msg);
+  }
+
+  // Read the body as text exactly once, then try to interpret it as JSON.
+  // This is resilient to non-JSON error pages (e.g. a 502 from the Vite
+  // dev proxy when the backend is down, which returns HTML, not JSON).
+  const raw = await res.text().catch(() => "");
+  let parsed: unknown = undefined;
+  if (raw) {
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      parsed = undefined;
+    }
+  }
+
+  if (!res.ok) {
+    const detail =
+      parsed && typeof parsed === "object" && parsed !== null && "detail" in parsed
+        ? String((parsed as { detail: unknown }).detail)
+        : raw || res.statusText;
+    const msg = `${path} failed (${res.status}): ${detail}`;
+    pushToast("error", msg);
+    throw new Error(msg);
+  }
+
+  if (parsed === undefined && raw) {
+    const msg = `${path} returned a non-JSON response`;
+    pushToast("error", msg);
+    throw new Error(msg);
+  }
+
+  return parsed as T;
 }
 
 export interface Tag {
@@ -158,9 +200,14 @@ export const api = {
     }),
 
   getProject: (project_id = "demo") =>
-    req<{ project: Project; summary: ProjectSummary }>(`/projects/${project_id}`),
+    req<{ project: Project; summary: ProjectSummary; approved: boolean }>(`/projects/${project_id}`),
 
   getGraph: (project_id = "demo") => req<GraphData>(`/projects/${project_id}/graph`),
+
+  getImpact: (node_id: string, project_id = "demo") =>
+    req<{ node: string; status: "OK" | "UNKNOWN"; affected_count?: number; affected?: { id: string; kind: string }[] }>(
+      `/engineering/impact?node_id=${encodeURIComponent(node_id)}&project_id=${project_id}`
+    ),
 
   plan: (requirement: string, project_id = "demo") =>
     req<{ plan: EngineeringPlan; mock_mode: boolean }>("/engineering/plan", {
@@ -209,17 +256,65 @@ export const api = {
     ),
 
   downloadUrl: () => `${BASE}/export/download`,
+
+  health: () => req<{ status: string }>("/health"),
 };
 
-export function simulationSocket(onMessage: (data: any) => void): WebSocket {
-  const proto = window.location.protocol === "https:" ? "wss" : "ws";
-  const ws = new WebSocket(`${proto}://${window.location.host}/api/ws/simulation`);
-  ws.onmessage = (ev) => {
-    try {
-      onMessage(JSON.parse(ev.data));
-    } catch {
-      /* ignore */
-    }
+export interface SimulationConnection {
+  close: () => void;
+}
+
+/**
+ * Opens the simulation WebSocket and auto-reconnects with backoff if the
+ * connection drops (backend restart, network blip). onStatus reports
+ * "connecting" | "open" | "closed" so the UI can show live-connection state
+ * instead of silently freezing.
+ */
+export function simulationSocket(
+  onMessage: (data: any) => void,
+  onStatus?: (status: "connecting" | "open" | "closed") => void
+): SimulationConnection {
+  let ws: WebSocket | null = null;
+  let closedByCaller = false;
+  let attempt = 0;
+  let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+
+  function connect() {
+    if (closedByCaller) return;
+    onStatus?.("connecting");
+    const proto = window.location.protocol === "https:" ? "wss" : "ws";
+    ws = new WebSocket(`${proto}://${window.location.host}/api/ws/simulation`);
+
+    ws.onopen = () => {
+      attempt = 0;
+      onStatus?.("open");
+    };
+    ws.onmessage = (ev) => {
+      try {
+        onMessage(JSON.parse(ev.data));
+      } catch {
+        /* ignore malformed frame */
+      }
+    };
+    ws.onclose = () => {
+      onStatus?.("closed");
+      if (closedByCaller) return;
+      attempt += 1;
+      const delay = Math.min(1000 * attempt, 5000);
+      reconnectTimer = setTimeout(connect, delay);
+    };
+    ws.onerror = () => {
+      ws?.close();
+    };
+  }
+
+  connect();
+
+  return {
+    close: () => {
+      closedByCaller = true;
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      ws?.close();
+    },
   };
-  return ws;
 }

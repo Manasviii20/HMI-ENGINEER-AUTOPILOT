@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Panel } from "../components/Panel";
-import { api, simulationSocket } from "../services/api";
+import { api, simulationSocket, type SimulationConnection } from "../services/api";
 import { useProject } from "../services/ProjectContext";
 
 const SCENARIOS = ["NORMAL", "HIGH_TEMPERATURE", "MOTOR_OVERLOAD", "EMERGENCY_STOP", "COMMUNICATION_LOSS"];
@@ -53,16 +53,23 @@ export function VirtualHmi() {
   const [activeScreen, setActiveScreen] = useState<string>("dashboard");
   const [tags, setTags] = useState<Record<string, unknown>>({});
   const [scenario, setScenario] = useState("NORMAL");
-  const wsRef = useRef<WebSocket | null>(null);
+  const [connStatus, setConnStatus] = useState<"connecting" | "open" | "closed">("connecting");
+  const [scenarioLoading, setScenarioLoading] = useState<string | null>(null);
+  const connRef = useRef<SimulationConnection | null>(null);
 
   useEffect(() => {
-    api.simulationStart();
-    const ws = simulationSocket((data) => {
-      setTags(data.tags ?? {});
-      setScenario(data.scenario ?? "NORMAL");
+    api.simulationStart().catch(() => {
+      /* toasted globally by api.ts; simulator may already be running */
     });
-    wsRef.current = ws;
-    return () => ws.close();
+    const conn = simulationSocket(
+      (data) => {
+        setTags(data.tags ?? {});
+        setScenario(data.scenario ?? "NORMAL");
+      },
+      setConnStatus
+    );
+    connRef.current = conn;
+    return () => conn.close();
   }, []);
 
   useEffect(() => {
@@ -72,8 +79,15 @@ export function VirtualHmi() {
   }, [project, activeScreen]);
 
   async function handleScenario(name: string) {
-    await api.simulationScenario(name);
-    await refreshValidation();
+    setScenarioLoading(name);
+    try {
+      await api.simulationScenario(name);
+      await refreshValidation();
+    } catch {
+      /* toasted globally by api.ts */
+    } finally {
+      setScenarioLoading(null);
+    }
   }
 
   if (!project) return <div className="text-[var(--text-dim)]">Loading...</div>;
@@ -92,19 +106,37 @@ export function VirtualHmi() {
 
   return (
     <div className="flex flex-col gap-6">
-      <Panel title="Simulation Controls" right={<span className="text-xs text-[var(--text-dim)]">Scenario: {scenario}</span>}>
+      <Panel
+        title="Simulation Controls"
+        right={
+          <div className="flex items-center gap-3 text-xs text-[var(--text-dim)]">
+            <span className="flex items-center gap-1.5">
+              <span
+                className="status-dot"
+                style={{
+                  background:
+                    connStatus === "open" ? "#35c76a" : connStatus === "connecting" ? "#f5a623" : "#ff4d4f",
+                }}
+              />
+              {connStatus === "open" ? "Live" : connStatus === "connecting" ? "Connecting..." : "Disconnected"}
+            </span>
+            <span>Scenario: {scenario}</span>
+          </div>
+        }
+      >
         <div className="flex gap-2 flex-wrap">
           {SCENARIOS.map((s) => (
             <button
               key={s}
               onClick={() => handleScenario(s)}
-              className={`px-3 py-1.5 rounded text-xs font-semibold border transition ${
+              disabled={scenarioLoading !== null}
+              className={`px-3 py-1.5 rounded text-xs font-semibold border transition disabled:opacity-50 ${
                 scenario === s
                   ? "bg-[var(--accent)]/20 border-[var(--accent)] text-[var(--accent)]"
                   : "border-[var(--border)] text-[var(--text-dim)] hover:text-[var(--text)]"
               }`}
             >
-              {s.replace("_", " ")}
+              {scenarioLoading === s ? "..." : s.replace("_", " ")}
             </button>
           ))}
         </div>

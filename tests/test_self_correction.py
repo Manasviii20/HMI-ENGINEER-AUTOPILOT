@@ -41,3 +41,22 @@ def test_self_correction_never_exceeds_max_cycles():
     project = _project_with_motor_overview()
     result = run_self_correction(project)
     assert len(result["cycles"]) <= 3
+
+
+def test_broken_multiword_label_binding_is_autofixed():
+    """Regression test: the default demo project's Trend object has the
+    multi-word label 'Motor Speed Trend', which a naive substring match
+    against 'Motor_01_Speed' fails to find. Auto-fix must still ground the
+    correction via token overlap, without generating any plan first."""
+    project = parse_project_file(DEMO)
+    trend = next(o for s in project.screens for o in s.objects if o.object_type == "TREND")
+    assert trend.tag == "Motor_01_Speed"
+    trend.tag = None
+
+    before = run_full_validation(project)
+    assert before["status"] == "FAILED"
+
+    result = run_self_correction(project)
+    assert result["final_status"] == "PASS"
+    trend_after = next(o for s in project.screens for o in s.objects if o.id == trend.id)
+    assert trend_after.tag == "Motor_01_Speed"

@@ -24,8 +24,10 @@ def get_project(project_id: str) -> Project:
     return _STORE[project_id]
 
 
-def set_project(project_id: str, project: Project) -> None:
+def set_project(project_id: str, project: Project, *, unapprove: bool = False) -> None:
     _STORE[project_id] = project
+    if unapprove:
+        _APPROVED[project_id] = False
 
 
 def approve(project_id: str) -> None:

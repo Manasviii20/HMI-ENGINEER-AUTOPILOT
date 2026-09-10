@@ -9,7 +9,15 @@ const KIND_COLOR: Record<string, string> = {
   Alarm: "#ff7043",
 };
 
-export function GraphView({ graph }: { graph: GraphData }) {
+export function GraphView({
+  graph,
+  onNodeClick,
+  selectedNode,
+}: {
+  graph: GraphData;
+  onNodeClick?: (nodeId: string) => void;
+  selectedNode?: string | null;
+}) {
   const layout = useMemo(() => {
     const colWidth = 240;
     const rowHeight = 42;
@@ -64,16 +72,20 @@ export function GraphView({ graph }: { graph: GraphData }) {
           );
         })}
         {Object.entries(layout.positions).map(([id, p]) => (
-          <g key={id}>
+          <g
+            key={id}
+            onClick={() => onNodeClick?.(id)}
+            style={{ cursor: onNodeClick ? "pointer" : "default" }}
+          >
             <rect
               x={p.x}
               y={p.y}
               width={180}
               height={22}
               rx={4}
-              fill="#16202c"
+              fill={selectedNode === id ? `${KIND_COLOR[p.kind]}33` : "#16202c"}
               stroke={KIND_COLOR[p.kind]}
-              strokeWidth={1}
+              strokeWidth={selectedNode === id ? 2 : 1}
             />
             <text x={p.x + 8} y={p.y + 15} fontSize={11} fill="#e4ecf3">
               {String(p.label).slice(0, 24)}

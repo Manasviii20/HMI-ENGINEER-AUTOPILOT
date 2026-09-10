@@ -18,6 +18,8 @@ from backend.hmi.project_generator import apply_plan
 from backend.validation.validator import run_full_validation
 from backend.ai.self_correction import run_self_correction
 from backend.ai.llm_client import llm_client
+from backend.ai.impact_analyzer import analyze_impact
+from backend.graph.project_graph import ProjectGraph
 from backend.simulator.machine import simulator
 
 router = APIRouter(prefix="/api")
@@ -42,7 +44,8 @@ def get_project(project_id: str):
         project = store.get_project(project_id)
     except KeyError as e:
         raise HTTPException(404, str(e))
-    return {"project": project.model_dump(), "summary": summarize(project)}
+    return {"project": project.model_dump(), "summary": summarize(project),
+            "approved": store.is_approved(project_id)}
 
 
 @router.get("/projects/{project_id}/graph")
@@ -53,6 +56,18 @@ def get_graph(project_id: str):
         raise HTTPException(404, str(e))
     g = build_graph(project)
     return graph_to_json(g)
+
+
+@router.get("/engineering/impact")
+def engineering_impact(node_id: str, project_id: str = "demo"):
+    """Deterministic graph-based change impact analysis for a given tag/screen/
+    object/alarm node. Pure NetworkX traversal -- no LLM involved."""
+    try:
+        project = store.get_project(project_id)
+    except KeyError as e:
+        raise HTTPException(404, str(e))
+    graph = ProjectGraph(build_graph(project))
+    return analyze_impact(graph, node_id)
 
 
 @router.post("/engineering/plan")
@@ -76,7 +91,7 @@ def engineering_apply(req: ApplyRequest):
     except Exception as e:
         raise HTTPException(422, f"Invalid EngineeringPlan: {e}")
     log = apply_plan(project, plan)
-    store.set_project(req.project_id, project)
+    store.set_project(req.project_id, project, unapprove=True)
     return {"log": log, "project": project.model_dump(), "summary": summarize(project)}
 
 
@@ -127,7 +142,7 @@ def autofix(req: ApproveRequest):
     except KeyError as e:
         raise HTTPException(404, str(e))
     result = run_self_correction(project)
-    store.set_project(req.project_id, project)
+    store.set_project(req.project_id, project, unapprove=True)
     return result
 
 
@@ -146,7 +161,7 @@ def break_binding(req: BreakBindingRequest):
     if not obj:
         raise HTTPException(404, f"Object '{req.object_id}' not found")
     obj.tag = None
-    store.set_project(req.project_id, project)
+    store.set_project(req.project_id, project, unapprove=True)
     return {"status": "BROKEN", "object_id": obj.id}
 
 

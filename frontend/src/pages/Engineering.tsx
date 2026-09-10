@@ -9,17 +9,26 @@ const DEFAULT_REQUIREMENT =
   "Add a motor overview screen showing motor speed, temperature and overload status. " +
   "Add a high-temperature alarm and make the screen accessible from main navigation.";
 
+interface ImpactState {
+  node: string;
+  status: "OK" | "UNKNOWN";
+  affected_count?: number;
+  affected?: { id: string; kind: string }[];
+}
+
 export function Engineering() {
   const { summary, refreshProject, refreshValidation } = useProject();
   const [graph, setGraph] = useState<GraphData | null>(null);
   const [requirement, setRequirement] = useState(DEFAULT_REQUIREMENT);
   const [plan, setPlan] = useState<EngineeringPlan | null>(null);
-  const [mockMode, setMockMode] = useState(false);
+  const [mockMode, setMockMode] = useState<boolean | null>(null);
   const [log, setLog] = useState<ApplyLogEntry[] | null>(null);
   const [planning, setPlanning] = useState(false);
   const [applying, setApplying] = useState(false);
+  const [impact, setImpact] = useState<ImpactState | null>(null);
+  const [impactLoading, setImpactLoading] = useState(false);
 
-  const loadGraph = () => api.getGraph().then(setGraph);
+  const loadGraph = () => api.getGraph().then(setGraph).catch(() => {});
 
   useEffect(() => {
     loadGraph();
@@ -32,6 +41,8 @@ export function Engineering() {
       const res = await api.plan(requirement);
       setPlan(res.plan);
       setMockMode(res.mock_mode);
+    } catch {
+      /* toasted globally by api.ts */
     } finally {
       setPlanning(false);
     }
@@ -46,16 +57,75 @@ export function Engineering() {
       await refreshProject();
       await refreshValidation();
       await loadGraph();
+    } catch {
+      /* toasted globally by api.ts */
     } finally {
       setApplying(false);
     }
   }
 
+  async function handleNodeClick(nodeId: string) {
+    setImpactLoading(true);
+    setImpact(null);
+    try {
+      const res = await api.getImpact(nodeId);
+      setImpact(res);
+    } catch {
+      /* toasted globally by api.ts */
+    } finally {
+      setImpactLoading(false);
+    }
+  }
+
   return (
     <div className="flex flex-col gap-6">
-      <Panel title="Project Graph" right={<span className="text-xs text-[var(--text-dim)]">NetworkX-derived dependency graph</span>}>
-        {graph ? <GraphView graph={graph} /> : <div className="text-[var(--text-dim)] text-sm">Loading graph...</div>}
-      </Panel>
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+        <Panel
+          className="xl:col-span-2"
+          title="Project Graph"
+          right={<span className="text-xs text-[var(--text-dim)]">NetworkX-derived dependency graph — click a node for impact analysis</span>}
+        >
+          {graph ? (
+            <GraphView graph={graph} onNodeClick={handleNodeClick} selectedNode={impact?.node} />
+          ) : (
+            <div className="text-[var(--text-dim)] text-sm">Loading graph...</div>
+          )}
+        </Panel>
+
+        <Panel title="Change Impact Analysis" right={<span className="text-xs text-[var(--text-dim)]">graph traversal, no LLM</span>}>
+          {!impact && !impactLoading && (
+            <div className="text-sm text-[var(--text-dim)]">
+              Click any node in the graph to see what tags, objects, screens or alarms depend on it.
+            </div>
+          )}
+          {impactLoading && <div className="text-sm text-[var(--text-dim)]">Analyzing...</div>}
+          {impact && !impactLoading && (
+            <div className="flex flex-col gap-2">
+              <div className="text-sm font-medium mono">{impact.node}</div>
+              {impact.status === "UNKNOWN" ? (
+                <div className="text-xs text-amber-400">Node not found in current graph.</div>
+              ) : (
+                <>
+                  <div className="text-xs text-[var(--text-dim)]">
+                    {impact.affected_count} connected node(s)
+                  </div>
+                  <div className="flex flex-col gap-1 max-h-64 overflow-auto">
+                    {(impact.affected ?? []).map((a) => (
+                      <div
+                        key={a.id}
+                        className="text-xs mono flex justify-between bg-[var(--panel-2)] rounded px-2 py-1 border border-[var(--border)]"
+                      >
+                        <span>{a.id}</span>
+                        <span className="text-[var(--text-dim)]">{a.kind}</span>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+        </Panel>
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Panel title="Engineering Requirement">
@@ -66,7 +136,11 @@ export function Engineering() {
           />
           <div className="flex items-center justify-between mt-3">
             <span className="text-xs text-[var(--text-dim)]">
-              {mockMode ? "Mock planner (no LLM API key configured)" : "LLM-backed planner"}
+              {mockMode === null
+                ? "Planner mode shown after first plan"
+                : mockMode
+                ? "Mock planner (no LLM API key configured)"
+                : "LLM-backed planner"}
             </span>
             <button
               className="px-4 py-2 rounded bg-[var(--accent)] text-[#03121c] font-semibold text-sm hover:opacity-90 disabled:opacity-50"

@@ -29,6 +29,8 @@ export function Review() {
     try {
       const res = await api.exportProject();
       setExportResult({ files: res.files, zip: res.zip });
+    } catch {
+      /* toasted globally by api.ts */
     } finally {
       setExporting(false);
     }
@@ -122,6 +124,7 @@ export function Review() {
             </div>
             <a
               href={api.downloadUrl()}
+              download={exportResult.zip}
               className="mt-2 inline-block w-fit px-4 py-2 rounded border border-[var(--accent)] text-[var(--accent)] text-sm font-semibold hover:bg-[var(--accent)]/10"
             >
               Download {exportResult.zip}

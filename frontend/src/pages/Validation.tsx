@@ -4,22 +4,49 @@ import { StatusPill } from "../components/StatusPill";
 import { api, type SelfCorrectionResult } from "../services/api";
 import { useProject } from "../services/ProjectContext";
 
+const TAG_REQUIRING_TYPES = new Set(["GAUGE", "VALUE_DISPLAY", "TREND"]);
+
 export function Validation() {
-  const { validation, refreshValidation, refreshProject } = useProject();
+  const { project, validation, refreshValidation, refreshProject } = useProject();
   const [breaking, setBreaking] = useState(false);
   const [fixing, setFixing] = useState(false);
+  const [revalidating, setRevalidating] = useState(false);
   const [correction, setCorrection] = useState<SelfCorrectionResult | null>(null);
+  const [breakError, setBreakError] = useState<string | null>(null);
+
+  function findBreakableObject(): string | null {
+    if (!project) return null;
+    for (const screen of project.screens) {
+      for (const obj of screen.objects) {
+        if (TAG_REQUIRING_TYPES.has(obj.object_type) && obj.tag) {
+          return obj.id;
+        }
+      }
+    }
+    return null;
+  }
 
   async function handleBreakBinding() {
+    const targetId = findBreakableObject();
+    if (!targetId) {
+      setBreakError(
+        "No tag-bound object (GAUGE/VALUE_DISPLAY/TREND) found to break. Generate and apply an " +
+          "engineering plan on the Engineering page first."
+      );
+      return;
+    }
     setBreaking(true);
+    setBreakError(null);
     setCorrection(null);
     try {
-      await api.breakBinding("obj_motor_overview_gauge");
-    } catch {
-      /* object may not exist yet if plan not applied */
+      await api.breakBinding(targetId);
+      await refreshValidation();
+      await refreshProject();
+    } catch (e) {
+      setBreakError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBreaking(false);
     }
-    await refreshValidation();
-    setBreaking(false);
   }
 
   async function handleAutofix() {
@@ -29,13 +56,22 @@ export function Validation() {
       setCorrection(res);
       await refreshValidation();
       await refreshProject();
+    } catch {
+      /* toasted globally by api.ts */
     } finally {
       setFixing(false);
     }
   }
 
   async function handleRevalidate() {
-    await refreshValidation();
+    setRevalidating(true);
+    try {
+      await refreshValidation();
+    } catch {
+      /* toasted globally by api.ts */
+    } finally {
+      setRevalidating(false);
+    }
   }
 
   if (!validation) return <div className="text-[var(--text-dim)]">Loading validation...</div>;
@@ -72,12 +108,18 @@ export function Validation() {
             </button>
             <button
               onClick={handleRevalidate}
-              className="px-3 py-1.5 rounded text-xs font-semibold border border-[var(--border)] text-[var(--text-dim)] hover:text-[var(--text)]"
+              disabled={revalidating}
+              className="px-3 py-1.5 rounded text-xs font-semibold border border-[var(--border)] text-[var(--text-dim)] hover:text-[var(--text)] disabled:opacity-50"
             >
-              Re-run Validation
+              {revalidating ? "Validating..." : "Re-run Validation"}
             </button>
           </div>
         </div>
+        {breakError && (
+          <div className="mt-3 text-xs bg-amber-500/10 border border-amber-500/30 rounded p-2 text-amber-400">
+            {breakError}
+          </div>
+        )}
       </Panel>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

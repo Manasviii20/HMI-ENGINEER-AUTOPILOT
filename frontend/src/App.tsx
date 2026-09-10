@@ -1,5 +1,6 @@
 import { HashRouter, NavLink, Route, Routes } from "react-router-dom";
 import { ProjectProvider, useProject } from "./services/ProjectContext";
+import { ToastHost } from "./components/ToastHost";
 import { Dashboard } from "./pages/Dashboard";
 import { Engineering } from "./pages/Engineering";
 import { VirtualHmi } from "./pages/VirtualHmi";
@@ -15,7 +16,7 @@ const NAV = [
 ];
 
 function Shell() {
-  const { summary, validation, error } = useProject();
+  const { summary, validation, error, backendOnline } = useProject();
   return (
     <div className="min-h-screen flex flex-col">
       <header className="border-b border-[var(--border)] bg-[var(--panel)] px-6 py-3 flex items-center justify-between">
@@ -61,7 +62,14 @@ function Shell() {
           </span>
         </div>
       </header>
-      {error && (
+      {backendOnline === false && (
+        <div className="bg-red-500/10 text-red-400 text-sm px-6 py-2 border-b border-red-500/30">
+          Backend API is unreachable at <span className="mono">http://localhost:8000</span>. Start it with{" "}
+          <span className="mono">uvicorn backend.main:app --reload --port 8000</span> — buttons won't work
+          until it's running.
+        </div>
+      )}
+      {error && backendOnline !== false && (
         <div className="bg-red-500/10 text-red-400 text-sm px-6 py-2 border-b border-red-500/30">
           Error: {error}
         </div>
@@ -75,6 +83,7 @@ function Shell() {
           <Route path="/review" element={<Review />} />
         </Routes>
       </main>
+      <ToastHost />
     </div>
   );
 }

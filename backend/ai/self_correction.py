@@ -4,12 +4,38 @@ Correction proposals are produced by a deterministic rule-based mock (or the
 LLM, when configured) but are ALWAYS re-validated against actual project data
 before being applied. Max 3 correction cycles to prevent infinite loops.
 """
+import re
+
 from backend.models.project import Project
 from backend.models.engineering import CorrectionPlan, CorrectionAction
 from backend.hmi.project_generator import apply_correction
 from backend.validation.validator import run_full_validation
 
 MAX_CYCLES = 3
+
+
+def _tokens(text: str) -> set[str]:
+    """Splits a label or tag name into lowercase word tokens, so 'Motor Speed
+    Trend' and 'Motor_01_Speed' both yield overlapping tokens like 'motor'
+    and 'speed' regardless of separator (space, underscore, digits)."""
+    return {t for t in re.split(r"[^a-z0-9]+", text.lower()) if t and not t.isdigit()}
+
+
+def _best_matching_tag(project: Project, obj) -> str | None:
+    """Grounded, deterministic role match: picks the existing tag whose name
+    shares the most word tokens with the object's label. Never invents a tag
+    -- only ever returns a tag that already exists in the project."""
+    role_tokens = _tokens(obj.label or "")
+    if not role_tokens:
+        return None
+    best_tag = None
+    best_overlap = 0
+    for tag in project.tags:
+        overlap = len(role_tokens & _tokens(tag.name))
+        if overlap > best_overlap:
+            best_overlap = overlap
+            best_tag = tag.name
+    return best_tag
 
 
 def _propose_correction(project: Project, issue: dict) -> CorrectionPlan | None:
@@ -23,8 +49,7 @@ def _propose_correction(project: Project, issue: dict) -> CorrectionPlan | None:
                     obj = o
         if not obj:
             return None
-        role_hint = (obj.label or "").lower()
-        candidate = next((t.name for t in project.tags if role_hint and role_hint in t.name.lower()), None)
+        candidate = _best_matching_tag(project, obj)
         if not candidate:
             return None
         return CorrectionPlan(
