@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Panel } from "../components/Panel";
 import { StatusPill } from "../components/StatusPill";
 import { api, type SelfCorrectionResult } from "../services/api";
@@ -7,7 +8,8 @@ import { useProject } from "../services/ProjectContext";
 const TAG_REQUIRING_TYPES = new Set(["GAUGE", "VALUE_DISPLAY", "TREND"]);
 
 export function Validation() {
-  const { project, validation, refreshValidation, refreshProject, pushActivity } = useProject();
+  const navigate = useNavigate();
+  const { project, validation, refreshValidation, refreshProject, pushActivity, advanceStage } = useProject();
   const [breaking, setBreaking] = useState(false);
   const [fixing, setFixing] = useState(false);
   const [revalidating, setRevalidating] = useState(false);
@@ -248,6 +250,20 @@ export function Validation() {
           </div>
         </Panel>
       )}
+
+      <div className="flex justify-end">
+        <button
+          onClick={() => {
+            advanceStage(7);
+            navigate("/workspace/review");
+          }}
+          disabled={validation.status !== "PASS"}
+          title={validation.status !== "PASS" ? "Run AI Auto-Fix (or resolve issues) until validation passes" : undefined}
+          className="px-5 py-2.5 rounded bg-[var(--accent)] text-[#03121c] font-semibold text-sm hover:opacity-90 active:scale-95 transition-all duration-150 disabled:opacity-40"
+        >
+          Continue to Final Review →
+        </button>
+      </div>
     </div>
   );
 }

@@ -4,61 +4,71 @@ import { ProjectProvider, useProject } from "./services/ProjectContext";
 import { ToastHost } from "./components/ToastHost";
 import { ThemeToggle } from "./components/ThemeToggle";
 import { useTheme } from "./hooks/useTheme";
-import { WorkspaceStepper, type WorkspaceStage } from "./components/WorkspaceStepper";
+import { WorkspaceStepper, type StageStatus, type WorkspaceStage } from "./components/WorkspaceStepper";
 import { Landing } from "./pages/Landing";
-import { Pipeline } from "./pages/Pipeline";
-import { Engineering } from "./pages/Engineering";
+import { Understanding } from "./pages/Understanding";
+import { PlanReview } from "./pages/PlanReview";
 import { ProjectGraph } from "./pages/ProjectGraph";
 import { VirtualHmi } from "./pages/VirtualHmi";
 import { Validation } from "./pages/Validation";
 import { Review } from "./pages/Review";
 import { DataFactory } from "./pages/DataFactory";
 
-function StatusChip({ label, value, tone }: { label: string; value: string; tone: "ok" | "warn" | "bad" | "neutral" }) {
-  const color =
-    tone === "ok" ? "var(--ok)" : tone === "warn" ? "var(--warn)" : tone === "bad" ? "var(--crit)" : "var(--text-dim)";
-  return (
-    <div className="flex flex-col leading-tight">
-      <span className="text-[9px] uppercase tracking-wider text-[var(--text-dim)]">{label}</span>
-      <span className="text-xs font-semibold" style={{ color }}>
-        {value}
-      </span>
-    </div>
-  );
+interface JourneyStageDef {
+  n: number;
+  path: string;
+  label: string;
 }
 
-function WorkspaceShell({ children }: { children: ReactNode }) {
-  const { summary, validation, approved, exported, autopilotResult, hasSimulationActivity, backendOnline, error } =
-    useProject();
-  const location = useLocation();
-  const navigate = useNavigate();
-  const [theme, toggleTheme] = useTheme();
+const JOURNEY: JourneyStageDef[] = [
+  { n: 1, path: "/", label: "Input" },
+  { n: 2, path: "/understand", label: "Understand" },
+  { n: 3, path: "/plan", label: "Plan" },
+  { n: 4, path: "/workspace/model", label: "Build" },
+  { n: 5, path: "/workspace/hmi", label: "Simulate" },
+  { n: 6, path: "/workspace/validation", label: "Validate" },
+  { n: 7, path: "/workspace/review", label: "Export" },
+];
 
+/** Requires the journey to have reached `minStage` (i.e. a prior checkpoint
+ * was approved) before rendering its children -- otherwise bounces back to
+ * the start. This is what makes each stage a real gate instead of a page
+ * the user could deep-link past. */
+function RequireStage({ minStage, children }: { minStage: number; children: ReactNode }) {
+  const { maxStage } = useProject();
+  const navigate = useNavigate();
   useEffect(() => {
-    if (!autopilotResult) {
+    if (maxStage < minStage) {
       navigate("/", { replace: true });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autopilotResult]);
+  }, [maxStage]);
 
-  if (!autopilotResult) return null;
+  if (maxStage < minStage) return null;
+  return <>{children}</>;
+}
 
-  const passPct = validation
-    ? Math.round((validation.summary.scenarios_passed / Math.max(1, validation.summary.scenarios_total)) * 100)
-    : null;
+function AppShell({ children }: { children: ReactNode }) {
+  const { summary, validation, maxStage, backendOnline, error, resetJourney } = useProject();
+  const location = useLocation();
+  const [theme, toggleTheme] = useTheme();
 
-  const stages: WorkspaceStage[] = [
-    { n: "01", path: "/workspace/engineering", label: "AI Engineering", status: "done" },
-    { n: "02", path: "/workspace/model", label: "Project Model", status: "done" },
-    { n: "03", path: "/workspace/hmi", label: "HMI & Simulation", status: hasSimulationActivity ? "done" : "pending" },
-    {
-      n: "04",
-      path: "/workspace/validation",
-      label: "Validation",
-      status: !validation ? "pending" : validation.status === "PASS" ? "done" : "attention",
-    },
-    { n: "05", path: "/workspace/review", label: "Review & Export", status: exported ? "done" : approved ? "done" : "pending" },
-  ].map((s) => ({ ...s, status: location.pathname === s.path ? "active" : s.status })) as WorkspaceStage[];
+  const currentStageN = JOURNEY.find((s) => s.path === location.pathname)?.n ?? 1;
+
+  const stages: WorkspaceStage[] = JOURNEY.map((s) => {
+    let status: StageStatus = "pending";
+    if (s.n === currentStageN) status = "active";
+    else if (s.n === 6 && validation && validation.status !== "PASS" && maxStage >= s.n) status = "attention";
+    else if (s.n <= maxStage) status = "done";
+
+    return {
+      n: String(s.n).padStart(2, "0"),
+      path: s.path,
+      label: s.label,
+      status,
+      clickable: s.n <= maxStage,
+    };
+  });
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -68,28 +78,22 @@ function WorkspaceShell({ children }: { children: ReactNode }) {
             HE
           </NavLink>
           <div>
-            <div className="font-semibold text-sm tracking-wide">{summary?.project_name ?? "Project"}</div>
-            <div className="text-xs text-[var(--text-dim)]">HMI Engineering Autopilot -- Engineer Workspace</div>
+            <div className="font-semibold text-sm tracking-wide">{summary?.project_name ?? "HMI Engineering Autopilot"}</div>
+            <div className="text-xs text-[var(--text-dim)]">
+              Customer &rarr; Engineer Autopilot -- Step {currentStageN}/{JOURNEY.length}
+            </div>
           </div>
         </div>
-        <div className="hidden md:flex items-center gap-6">
-          <StatusChip label="AI Engineering" value="COMPLETE" tone="ok" />
-          <StatusChip
-            label="Simulation"
-            value={hasSimulationActivity ? "RUNNING" : "READY"}
-            tone={hasSimulationActivity ? "ok" : "neutral"}
-          />
-          <StatusChip
-            label="Validation"
-            value={validation ? `${passPct}% -- ${validation.status}` : "PENDING"}
-            tone={!validation ? "neutral" : validation.status === "PASS" ? "ok" : "bad"}
-          />
-          <StatusChip label="Review" value={exported ? "EXPORTED" : approved ? "APPROVED" : "PENDING"} tone={exported || approved ? "ok" : "neutral"} />
-        </div>
         <div className="flex items-center gap-3">
-          <NavLink to="/" className="text-xs text-[var(--text-dim)] hover:text-[var(--accent)] transition-colors-smooth">
+          <button
+            onClick={() => {
+              resetJourney();
+              window.location.hash = "#/";
+            }}
+            className="text-xs text-[var(--text-dim)] hover:text-[var(--accent)] transition-colors-smooth"
+          >
             New Project
-          </NavLink>
+          </button>
           <ThemeToggle theme={theme} onToggle={toggleTheme} />
         </div>
       </header>
@@ -117,64 +121,68 @@ function WorkspaceShell({ children }: { children: ReactNode }) {
 
 function Root() {
   return (
-    <Routes>
-      <Route path="/" element={<Landing />} />
-      <Route path="/pipeline" element={<Pipeline />} />
-      <Route
-        path="/workspace/engineering"
-        element={
-          <WorkspaceShell>
-            <Engineering />
-          </WorkspaceShell>
-        }
-      />
-      <Route
-        path="/workspace/model"
-        element={
-          <WorkspaceShell>
-            <ProjectGraph />
-          </WorkspaceShell>
-        }
-      />
-      <Route
-        path="/workspace/hmi"
-        element={
-          <WorkspaceShell>
-            <VirtualHmi />
-          </WorkspaceShell>
-        }
-      />
-      <Route
-        path="/workspace/validation"
-        element={
-          <WorkspaceShell>
-            <Validation />
-          </WorkspaceShell>
-        }
-      />
-      <Route
-        path="/workspace/review"
-        element={
-          <WorkspaceShell>
-            <Review />
-            <div className="mt-6 text-center">
-              <NavLink to="/tools/factory" className="text-xs text-[var(--text-dim)] hover:text-[var(--accent)] transition-colors-smooth">
-                Advanced: Synthetic Engineering Data Factory →
-              </NavLink>
-            </div>
-          </WorkspaceShell>
-        }
-      />
-      <Route
-        path="/tools/factory"
-        element={
-          <WorkspaceShell>
-            <DataFactory />
-          </WorkspaceShell>
-        }
-      />
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+    <AppShell>
+      <Routes>
+        <Route path="/" element={<Landing />} />
+        <Route path="/understand" element={<Understanding />} />
+        <Route
+          path="/plan"
+          element={
+            <RequireStage minStage={2}>
+              <PlanReview />
+            </RequireStage>
+          }
+        />
+        <Route
+          path="/workspace/model"
+          element={
+            <RequireStage minStage={4}>
+              <ProjectGraph />
+            </RequireStage>
+          }
+        />
+        <Route
+          path="/workspace/hmi"
+          element={
+            <RequireStage minStage={4}>
+              <VirtualHmi />
+            </RequireStage>
+          }
+        />
+        <Route
+          path="/workspace/validation"
+          element={
+            <RequireStage minStage={4}>
+              <Validation />
+            </RequireStage>
+          }
+        />
+        <Route
+          path="/workspace/review"
+          element={
+            <RequireStage minStage={4}>
+              <>
+                <Review />
+                <div className="mt-6 text-center">
+                  <NavLink to="/tools/factory" className="text-xs text-[var(--text-dim)] hover:text-[var(--accent)] transition-colors-smooth">
+                    Advanced: Synthetic Engineering Data Factory →
+                  </NavLink>
+                </div>
+              </>
+            </RequireStage>
+          }
+        />
+        <Route
+          path="/tools/factory"
+          element={
+            <RequireStage minStage={4}>
+              <DataFactory />
+            </RequireStage>
+          }
+        />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </AppShell>
   );
 }
 

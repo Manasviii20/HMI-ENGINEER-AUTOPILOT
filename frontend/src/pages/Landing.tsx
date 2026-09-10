@@ -1,8 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useProject } from "../services/ProjectContext";
-import { ThemeToggle } from "../components/ThemeToggle";
-import { useTheme } from "../hooks/useTheme";
 
 interface Example {
   label: string;
@@ -61,29 +59,18 @@ const EXAMPLES: Example[] = [
 ];
 
 export function Landing() {
-  const { backendOnline } = useProject();
-  const [requirement, setRequirement] = useState("");
-  const [theme, toggleTheme] = useTheme();
+  const { backendOnline, requirement: savedRequirement } = useProject();
+  const [requirement, setRequirement] = useState(savedRequirement);
   const navigate = useNavigate();
 
   function start() {
     const text = requirement.trim();
     if (!text) return;
-    navigate("/pipeline", { state: { requirement: text } });
+    navigate("/understand", { state: { requirement: text } });
   }
 
   return (
     <div className="min-h-screen flex flex-col">
-      <header className="flex items-center justify-between px-6 py-4">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded bg-[var(--accent)]/15 border border-[var(--accent)]/40 flex items-center justify-center text-[var(--accent)] font-bold text-sm">
-            HE
-          </div>
-          <span className="font-semibold text-sm tracking-wide">HMI Engineering Autopilot</span>
-        </div>
-        <ThemeToggle theme={theme} onToggle={toggleTheme} />
-      </header>
-
       {backendOnline === false && (
         <div className="bg-red-500/10 text-red-400 text-sm px-6 py-2 border-y border-red-500/30 text-center">
           Backend API is unreachable at <span className="mono">http://localhost:8000</span>. Start it with{" "}
@@ -123,7 +110,7 @@ export function Landing() {
                 disabled={!requirement.trim() || backendOnline === false}
                 className="px-6 py-2.5 rounded bg-[var(--accent)] text-[#03121c] font-semibold text-sm hover:opacity-90 active:scale-95 transition-all duration-150 disabled:opacity-40"
               >
-                Start Engineering →
+                Continue →
               </button>
             </div>
           </div>
@@ -150,13 +137,17 @@ export function Landing() {
 
         <div className="w-full max-w-4xl mt-14">
           <div className="text-xs uppercase tracking-wider text-[var(--text-dim)] font-semibold mb-4 text-center">
-            How it works
+            The 7-stage engineering journey
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {[
-              { n: "1", t: "Describe", d: "Tell the autopilot what machine or process you need in plain language." },
-              { n: "2", t: "AI Engineers It", d: "The autopilot builds the tags, screens, alarms, navigation and simulation." },
-              { n: "3", t: "Review & Export", d: "You review the validated HMI, request changes, approve and export it." },
+              { n: "1", t: "Input", d: "Describe the machine or process you need in plain language." },
+              { n: "2", t: "Understand", d: "The AI reads it back: equipment, tags, alarms it found." },
+              { n: "3", t: "Plan", d: "You approve the proposed screens, tags and alarms before anything is built." },
+              { n: "4", t: "Build", d: "Tags, screens, alarms and navigation are generated as an editable project graph." },
+              { n: "5", t: "Simulate", d: "Watch the live HMI react to injected process faults." },
+              { n: "6", t: "Validate", d: "Automated tests catch issues; the AI self-corrects what it can." },
+              { n: "7", t: "Export", d: "Approve the validated project and download the package." },
             ].map((s) => (
               <div key={s.n} className="card p-4 flex flex-col gap-1.5">
                 <span className="w-7 h-7 rounded-full bg-[var(--accent)]/15 border border-[var(--accent)]/40 text-[var(--accent)] text-xs font-bold flex items-center justify-center">
