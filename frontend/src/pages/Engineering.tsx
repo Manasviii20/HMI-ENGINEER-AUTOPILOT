@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Panel } from "../components/Panel";
 import { StatusPill } from "../components/StatusPill";
 import { GraphView } from "../components/GraphView";
+import { PipelineStepper, type PipelineStep } from "../components/PipelineStepper";
 import { api, type ApplyLogEntry, type EngineeringPlan, type GraphData } from "../services/api";
 import { useProject } from "../services/ProjectContext";
 
@@ -17,7 +18,7 @@ interface ImpactState {
 }
 
 export function Engineering() {
-  const { summary, refreshProject, refreshValidation } = useProject();
+  const { summary, validation, refreshProject, refreshValidation } = useProject();
   const [graph, setGraph] = useState<GraphData | null>(null);
   const [requirement, setRequirement] = useState(DEFAULT_REQUIREMENT);
   const [plan, setPlan] = useState<EngineeringPlan | null>(null);
@@ -77,8 +78,34 @@ export function Engineering() {
     }
   }
 
+  const steps: PipelineStep[] = useMemo(
+    () => [
+      { id: "requirement", label: "Requirement", state: "done" },
+      {
+        id: "plan",
+        label: "AI Plan",
+        state: planning ? "active" : plan ? "done" : "idle",
+      },
+      {
+        id: "generate",
+        label: "Generate",
+        state: applying ? "active" : log ? "done" : "idle",
+      },
+      {
+        id: "validate",
+        label: "Validate",
+        state: !log ? "idle" : validation?.status === "PASS" ? "done" : validation?.status === "FAILED" ? "error" : "idle",
+      },
+    ],
+    [planning, plan, applying, log, validation]
+  );
+
   return (
     <div className="flex flex-col gap-6">
+      <Panel title="Engineering Pipeline" right={<span className="text-xs text-[var(--text-dim)]">requirement → AI plan → deterministic generation → validation</span>}>
+        <PipelineStepper steps={steps} />
+      </Panel>
+
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         <Panel
           className="xl:col-span-2"
@@ -143,23 +170,38 @@ export function Engineering() {
                 : "LLM-backed planner"}
             </span>
             <button
-              className="px-4 py-2 rounded bg-[var(--accent)] text-[#03121c] font-semibold text-sm hover:opacity-90 disabled:opacity-50"
+              className="relative overflow-hidden px-4 py-2 rounded bg-[var(--accent)] text-[#03121c] font-semibold text-sm hover:opacity-90 active:scale-95 transition-all duration-150 disabled:opacity-50"
               onClick={handlePlan}
               disabled={planning || !requirement.trim()}
             >
               {planning ? "Generating..." : "Generate Engineering Plan"}
+              {planning && (
+                <span className="absolute inset-x-0 bottom-0 h-0.5 bg-white/50 anim-progress-bar w-1/3" />
+              )}
             </button>
           </div>
         </Panel>
 
         <Panel title="Engineering Plan">
-          {!plan && <div className="text-sm text-[var(--text-dim)]">No plan generated yet.</div>}
-          {plan && (
-            <div className="flex flex-col gap-3">
+          {planning && (
+            <div className="flex flex-col gap-2">
+              <div className="h-4 w-3/4 rounded anim-shimmer" />
+              <div className="h-8 w-full rounded anim-shimmer" style={{ animationDelay: "80ms" }} />
+              <div className="h-8 w-full rounded anim-shimmer" style={{ animationDelay: "160ms" }} />
+              <div className="h-8 w-5/6 rounded anim-shimmer" style={{ animationDelay: "240ms" }} />
+            </div>
+          )}
+          {!plan && !planning && <div className="text-sm text-[var(--text-dim)]">No plan generated yet.</div>}
+          {plan && !planning && (
+            <div className="flex flex-col gap-3 anim-rise-in">
               <div className="text-sm text-[var(--text-dim)]">{plan.summary}</div>
               <div className="flex flex-col gap-1 max-h-56 overflow-auto">
                 {plan.actions.map((a, i) => (
-                  <div key={i} className="text-xs mono bg-[var(--panel-2)] rounded px-2 py-1.5 border border-[var(--border)]">
+                  <div
+                    key={i}
+                    className="text-xs mono bg-[var(--panel-2)] rounded px-2 py-1.5 border border-[var(--border)] anim-rise-in transition-colors-smooth hover:border-[var(--accent)]/40"
+                    style={{ animationDelay: `${i * 70}ms` }}
+                  >
                     <span className="text-[var(--accent)] font-semibold">{a.action}</span>{" "}
                     {a.screen && <span>screen={a.screen} </span>}
                     {a.object_type && <span>type={a.object_type} </span>}
@@ -170,16 +212,19 @@ export function Engineering() {
                 ))}
               </div>
               {plan.unknowns.length > 0 && (
-                <div className="text-xs bg-amber-500/10 border border-amber-500/30 rounded p-2 text-amber-400">
+                <div className="text-xs bg-amber-500/10 border border-amber-500/30 rounded p-2 text-amber-400 anim-rise-in">
                   UNKNOWN / requires engineer input: {plan.unknowns.join("; ")}
                 </div>
               )}
               <button
-                className="px-4 py-2 rounded bg-emerald-500/90 text-[#03120b] font-semibold text-sm hover:opacity-90 disabled:opacity-50 self-start"
+                className="relative overflow-hidden px-4 py-2 rounded bg-emerald-500/90 text-[#03120b] font-semibold text-sm hover:opacity-90 active:scale-95 transition-all duration-150 disabled:opacity-50 self-start"
                 onClick={handleApply}
                 disabled={applying}
               >
                 {applying ? "Applying..." : "Apply Plan (Generate HMI)"}
+                {applying && (
+                  <span className="absolute inset-x-0 bottom-0 h-0.5 bg-white/50 anim-progress-bar w-1/3" />
+                )}
               </button>
             </div>
           )}
@@ -190,7 +235,11 @@ export function Engineering() {
         <Panel title="Generated Changes">
           <div className="flex flex-col gap-2">
             {log.map((entry, i) => (
-              <div key={i} className="flex items-center justify-between text-sm bg-[var(--panel-2)] rounded px-3 py-2 border border-[var(--border)]">
+              <div
+                key={i}
+                className="flex items-center justify-between text-sm bg-[var(--panel-2)] rounded px-3 py-2 border border-[var(--border)] anim-rise-in transition-colors-smooth hover:border-[var(--accent)]/40"
+                style={{ animationDelay: `${i * 90}ms` }}
+              >
                 <span className="mono">{entry.action}</span>
                 <div className="flex items-center gap-3">
                   {entry.reason && <span className="text-xs text-[var(--text-dim)]">{entry.reason}</span>}

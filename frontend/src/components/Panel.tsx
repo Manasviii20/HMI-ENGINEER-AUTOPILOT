@@ -12,7 +12,7 @@ export function Panel({
   className?: string;
 }) {
   return (
-    <div className={`card p-4 ${className}`}>
+    <div className={`card p-4 transition-colors-smooth ${className}`}>
       {title && (
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-sm font-semibold uppercase tracking-wider text-[var(--text-dim)]">

@@ -87,14 +87,20 @@ export function Review() {
             project for export.
           </p>
           {approveError && (
-            <div className="text-sm text-red-400 mb-2">{approveError}</div>
+            <div className="text-sm text-red-400 mb-2 anim-rise-in">{approveError}</div>
           )}
           <button
             onClick={handleApprove}
             disabled={approving || validation.status !== "PASS" || approved}
-            className="px-4 py-2 rounded bg-emerald-500/90 text-[#03120b] font-semibold text-sm hover:opacity-90 disabled:opacity-40"
+            className="relative overflow-hidden px-4 py-2 rounded bg-emerald-500/90 text-[#03120b] font-semibold text-sm hover:opacity-90 active:scale-95 transition-all duration-150 disabled:opacity-40 flex items-center gap-2"
           >
+            {approved && (
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" className="anim-pop-in">
+                <path d="M5 13l4 4L19 7" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            )}
             {approved ? "Approved" : approving ? "Approving..." : "Approve Project"}
+            {approving && <span className="absolute inset-x-0 bottom-0 h-0.5 bg-white/50 anim-progress-bar w-1/3" />}
           </button>
         </Panel>
       </div>
@@ -108,16 +114,21 @@ export function Review() {
         <button
           onClick={handleExport}
           disabled={exporting}
-          className="px-4 py-2 rounded bg-[var(--accent)] text-[#03121c] font-semibold text-sm hover:opacity-90 disabled:opacity-50"
+          className="relative overflow-hidden px-4 py-2 rounded bg-[var(--accent)] text-[#03121c] font-semibold text-sm hover:opacity-90 active:scale-95 transition-all duration-150 disabled:opacity-50"
         >
           {exporting ? "Exporting..." : "Export Project Package"}
+          {exporting && <span className="absolute inset-x-0 bottom-0 h-0.5 bg-white/50 anim-progress-bar w-1/3" />}
         </button>
         {exportResult && (
-          <div className="mt-4 flex flex-col gap-2">
+          <div className="mt-4 flex flex-col gap-2 anim-rise-in">
             <div className="text-xs text-[var(--text-dim)]">Generated files:</div>
             <div className="flex flex-wrap gap-2">
-              {exportResult.files.map((f) => (
-                <span key={f} className="text-xs mono px-2 py-1 rounded bg-[var(--panel-2)] border border-[var(--border)]">
+              {exportResult.files.map((f, i) => (
+                <span
+                  key={f}
+                  className="text-xs mono px-2 py-1 rounded bg-[var(--panel-2)] border border-[var(--border)] anim-pop-in transition-transform duration-150 hover:scale-105"
+                  style={{ animationDelay: `${i * 60}ms` }}
+                >
                   {f}
                 </span>
               ))}
@@ -125,9 +136,9 @@ export function Review() {
             <a
               href={api.downloadUrl()}
               download={exportResult.zip}
-              className="mt-2 inline-block w-fit px-4 py-2 rounded border border-[var(--accent)] text-[var(--accent)] text-sm font-semibold hover:bg-[var(--accent)]/10"
+              className="mt-2 inline-block w-fit px-4 py-2 rounded border border-[var(--accent)] text-[var(--accent)] text-sm font-semibold hover:bg-[var(--accent)]/10 active:scale-95 transition-all duration-150 anim-pop-in"
             >
-              Download {exportResult.zip}
+              ⬇ Download {exportResult.zip}
             </a>
           </div>
         )}

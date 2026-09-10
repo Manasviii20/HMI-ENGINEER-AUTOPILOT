@@ -7,6 +7,12 @@ const KIND_STYLE: Record<Toast["kind"], string> = {
   info: "bg-[var(--accent)]/15 border-[var(--accent)]/50 text-[var(--accent)]",
 };
 
+const KIND_ICON: Record<Toast["kind"], string> = {
+  error: "✕",
+  success: "✓",
+  info: "i",
+};
+
 export function ToastHost() {
   const [toasts, setToasts] = useState<Toast[]>([]);
 
@@ -19,12 +25,15 @@ export function ToastHost() {
       {toasts.map((t) => (
         <div
           key={t.id}
-          className={`border rounded px-3 py-2 text-sm shadow-lg flex items-start justify-between gap-3 ${KIND_STYLE[t.kind]}`}
+          className={`anim-toast-in border rounded px-3 py-2 text-sm shadow-lg flex items-start gap-2.5 backdrop-blur-sm ${KIND_STYLE[t.kind]}`}
         >
-          <span className="break-words">{t.message}</span>
+          <span className="w-4 h-4 rounded-full border border-current flex items-center justify-center text-[10px] shrink-0 mt-0.5">
+            {KIND_ICON[t.kind]}
+          </span>
+          <span className="break-words flex-1">{t.message}</span>
           <button
             onClick={() => dismissToast(t.id)}
-            className="opacity-60 hover:opacity-100 shrink-0"
+            className="opacity-60 hover:opacity-100 shrink-0 transition-opacity"
             aria-label="Dismiss"
           >
             ✕

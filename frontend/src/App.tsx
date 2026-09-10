@@ -1,4 +1,4 @@
-import { HashRouter, NavLink, Route, Routes } from "react-router-dom";
+import { HashRouter, NavLink, Route, Routes, useLocation } from "react-router-dom";
 import { ProjectProvider, useProject } from "./services/ProjectContext";
 import { ToastHost } from "./components/ToastHost";
 import { Dashboard } from "./pages/Dashboard";
@@ -17,11 +17,12 @@ const NAV = [
 
 function Shell() {
   const { summary, validation, error, backendOnline } = useProject();
+  const location = useLocation();
   return (
     <div className="min-h-screen flex flex-col">
       <header className="border-b border-[var(--border)] bg-[var(--panel)] px-6 py-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded bg-[var(--accent)]/15 border border-[var(--accent)]/40 flex items-center justify-center text-[var(--accent)] font-bold text-sm">
+          <div className="w-8 h-8 rounded bg-[var(--accent)]/15 border border-[var(--accent)]/40 flex items-center justify-center text-[var(--accent)] font-bold text-sm transition-transform duration-300 hover:rotate-6 hover:scale-110">
             HE
           </div>
           <div>
@@ -38,7 +39,7 @@ function Shell() {
               to={n.to}
               end={n.to === "/"}
               className={({ isActive }) =>
-                `px-3 py-1.5 rounded text-sm font-medium transition ${
+                `relative px-3 py-1.5 rounded text-sm font-medium transition-all duration-200 ${
                   isActive
                     ? "bg-[var(--accent)]/15 text-[var(--accent)]"
                     : "text-[var(--text-dim)] hover:text-[var(--text)] hover:bg-white/5"
@@ -52,12 +53,21 @@ function Shell() {
         <div className="flex items-center gap-2 text-xs">
           <span className="text-[var(--text-dim)]">Validation:</span>
           <span
-            className={`px-2 py-0.5 rounded font-semibold border ${
+            key={validation?.status}
+            className={`px-2 py-0.5 rounded font-semibold border transition-colors-smooth anim-pop-in flex items-center gap-1.5 ${
               validation?.status === "PASS"
                 ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/40"
-                : "bg-red-500/15 text-red-400 border-red-500/40"
+                : validation?.status === "FAILED"
+                ? "bg-red-500/15 text-red-400 border-red-500/40"
+                : "bg-[var(--panel-2)] text-[var(--text-dim)] border-[var(--border)]"
             }`}
           >
+            {validation?.status && (
+              <span
+                className={`status-dot ${validation.status === "PASS" ? "" : "anim-flash"}`}
+                style={{ background: "currentColor" }}
+              />
+            )}
             {validation?.status ?? "..."}
           </span>
         </div>
@@ -75,13 +85,15 @@ function Shell() {
         </div>
       )}
       <main className="flex-1 p-6">
-        <Routes>
-          <Route path="/" element={<Dashboard />} />
-          <Route path="/engineering" element={<Engineering />} />
-          <Route path="/hmi" element={<VirtualHmi />} />
-          <Route path="/validation" element={<Validation />} />
-          <Route path="/review" element={<Review />} />
-        </Routes>
+        <div key={location.pathname} className="anim-route-fade">
+          <Routes location={location}>
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/engineering" element={<Engineering />} />
+            <Route path="/hmi" element={<VirtualHmi />} />
+            <Route path="/validation" element={<Validation />} />
+            <Route path="/review" element={<Review />} />
+          </Routes>
+        </div>
       </main>
       <ToastHost />
     </div>

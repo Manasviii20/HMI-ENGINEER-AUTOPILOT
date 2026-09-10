@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, type CSSProperties } from "react";
 import type { GraphData } from "../services/api";
 
 const KIND_ORDER = ["Screen", "Object", "Tag", "Alarm"];
@@ -47,9 +47,23 @@ export function GraphView({
     return { positions, width, height, colX };
   }, [graph]);
 
+  const connectedNodeIds = useMemo(() => {
+    if (!selectedNode) return null;
+    const ids = new Set<string>([selectedNode]);
+    graph.edges.forEach((e) => {
+      if (e.source === selectedNode) ids.add(e.target);
+      if (e.target === selectedNode) ids.add(e.source);
+    });
+    return ids;
+  }, [graph.edges, selectedNode]);
+
+  // key changes whenever the graph structure changes (e.g. after "Apply Plan"
+  // adds a screen), so the draw-in animation replays to show what's new.
+  const graphKey = `${graph.nodes.length}-${graph.edges.length}`;
+
   return (
     <div className="overflow-auto">
-      <svg width={layout.width} height={layout.height} className="min-w-full">
+      <svg key={graphKey} width={layout.width} height={layout.height} className="min-w-full">
         {KIND_ORDER.map((k) => (
           <text key={k} x={layout.colX[k]} y={16} fill={KIND_COLOR[k]} fontSize={11} fontWeight={700}>
             {k.toUpperCase()}
@@ -59,39 +73,62 @@ export function GraphView({
           const s = layout.positions[e.source];
           const t = layout.positions[e.target];
           if (!s || !t) return null;
+          const x1 = s.x + 90;
+          const y1 = s.y + 10;
+          const x2 = t.x;
+          const y2 = t.y + 10;
+          const len = Math.hypot(x2 - x1, y2 - y1);
+          const highlighted =
+            connectedNodeIds && connectedNodeIds.has(e.source) && connectedNodeIds.has(e.target);
           return (
             <line
               key={i}
-              x1={s.x + 90}
-              y1={s.y + 10}
-              x2={t.x}
-              y2={t.y + 10}
-              stroke="#2a3a4a"
-              strokeWidth={1.5}
+              x1={x1}
+              y1={y1}
+              x2={x2}
+              y2={y2}
+              stroke={highlighted ? "var(--accent)" : "#2a3a4a"}
+              strokeWidth={highlighted ? 2.2 : 1.5}
+              opacity={connectedNodeIds && !highlighted ? 0.25 : 1}
+              className="anim-draw transition-all duration-300"
+              style={{ "--line-len": len, animationDelay: `${Math.min(i * 12, 400)}ms` } as CSSProperties}
             />
           );
         })}
-        {Object.entries(layout.positions).map(([id, p]) => (
-          <g
-            key={id}
-            onClick={() => onNodeClick?.(id)}
-            style={{ cursor: onNodeClick ? "pointer" : "default" }}
-          >
-            <rect
-              x={p.x}
-              y={p.y}
-              width={180}
-              height={22}
-              rx={4}
-              fill={selectedNode === id ? `${KIND_COLOR[p.kind]}33` : "#16202c"}
-              stroke={KIND_COLOR[p.kind]}
-              strokeWidth={selectedNode === id ? 2 : 1}
-            />
-            <text x={p.x + 8} y={p.y + 15} fontSize={11} fill="#e4ecf3">
-              {String(p.label).slice(0, 24)}
-            </text>
-          </g>
-        ))}
+        {Object.entries(layout.positions).map(([id, p], i) => {
+          const dimmed = connectedNodeIds && !connectedNodeIds.has(id);
+          return (
+            <g
+              key={id}
+              onClick={() => onNodeClick?.(id)}
+              className="anim-pop-in transition-opacity duration-300"
+              style={{
+                cursor: onNodeClick ? "pointer" : "default",
+                animationDelay: `${Math.min(i * 20, 300)}ms`,
+                opacity: dimmed ? 0.35 : 1,
+              }}
+            >
+              <rect
+                x={p.x}
+                y={p.y}
+                width={180}
+                height={22}
+                rx={4}
+                fill={selectedNode === id ? `${KIND_COLOR[p.kind]}33` : "#16202c"}
+                stroke={KIND_COLOR[p.kind]}
+                strokeWidth={selectedNode === id ? 2.5 : 1}
+                className="transition-all duration-200"
+              >
+                {onNodeClick && (
+                  <title>{`${p.label} (${p.kind}) — click for impact analysis`}</title>
+                )}
+              </rect>
+              <text x={p.x + 8} y={p.y + 15} fontSize={11} fill="#e4ecf3">
+                {String(p.label).slice(0, 24)}
+              </text>
+            </g>
+          );
+        })}
       </svg>
     </div>
   );
