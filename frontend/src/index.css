@@ -1,7 +1,9 @@
 @import "tailwindcss";
 
-:root {
+:root,
+:root[data-theme="dark"] {
   --bg: #0f1620;
+  --bg-grid: rgba(47, 179, 255, 0.05);
   --panel: #16202c;
   --panel-2: #1c2836;
   --border: #2a3a4a;
@@ -9,11 +11,33 @@
   --text-dim: #8fa3b5;
   --accent: #2fb3ff;
   --accent-dim: #1a6f99;
+  --accent-2: #a78bfa;
   --ok: #35c76a;
   --warn: #f5a623;
   --high: #ff7043;
   --crit: #ff4d4f;
+  --shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+  color-scheme: dark;
   font-family: 'Segoe UI', 'Inter', system-ui, sans-serif;
+}
+
+:root[data-theme="light"] {
+  --bg: #eef3f8;
+  --bg-grid: rgba(23, 107, 176, 0.06);
+  --panel: #ffffff;
+  --panel-2: #f2f6fb;
+  --border: #d6e1ec;
+  --text: #16202c;
+  --text-dim: #5b7186;
+  --accent: #176bb0;
+  --accent-dim: #0d4d85;
+  --accent-2: #7c5cd6;
+  --ok: #1f9d55;
+  --warn: #c97a0c;
+  --high: #d8551f;
+  --crit: #d3342f;
+  --shadow: 0 1px 3px rgba(23, 51, 80, 0.12);
+  color-scheme: light;
 }
 
 html, body, #root {
@@ -21,6 +45,15 @@ html, body, #root {
   margin: 0;
   background: var(--bg);
   color: var(--text);
+  transition: background-color 0.25s ease, color 0.25s ease;
+}
+
+body {
+  background-image:
+    linear-gradient(var(--bg-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--bg-grid) 1px, transparent 1px);
+  background-size: 32px 32px;
+  background-attachment: fixed;
 }
 
 * {
@@ -30,7 +63,8 @@ html, body, #root {
 .card {
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: 8px;
+  box-shadow: var(--shadow);
 }
 
 .mono {

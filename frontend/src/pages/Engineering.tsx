@@ -80,21 +80,43 @@ export function Engineering() {
 
   const steps: PipelineStep[] = useMemo(
     () => [
-      { id: "requirement", label: "Requirement", state: "done" },
+      {
+        id: "requirement",
+        label: "Requirement",
+        state: "done",
+        description: "The engineer's plain-English requirement, ready to be interpreted below.",
+      },
       {
         id: "plan",
         label: "AI Plan",
         state: planning ? "active" : plan ? "done" : "idle",
+        description: planning
+          ? "The planner is parsing the requirement and matching it against real tags/screens in the project graph."
+          : plan
+          ? `Plan ready: ${plan.actions.length} action(s) grounded in existing project data.`
+          : "Waiting for a requirement to be submitted.",
       },
       {
         id: "generate",
         label: "Generate",
         state: applying ? "active" : log ? "done" : "idle",
+        description: applying
+          ? "Deterministic backend code is executing the plan -- creating screens, objects, alarms and navigation."
+          : log
+          ? `HMI updated: ${log.filter((l) => l.status === "APPLIED").length}/${log.length} action(s) applied.`
+          : "Waiting for the plan to be applied.",
       },
       {
         id: "validate",
         label: "Validate",
         state: !log ? "idle" : validation?.status === "PASS" ? "done" : validation?.status === "FAILED" ? "error" : "idle",
+        description: !log
+          ? "Waiting for generation to finish."
+          : validation?.status === "PASS"
+          ? "Structural + simulation checks all pass -- the generated HMI is valid."
+          : validation?.status === "FAILED"
+          ? `${validation.summary.structural_issue_count} issue(s) found -- see the Validation page to auto-fix.`
+          : "Re-running validation checks.",
       },
     ],
     [planning, plan, applying, log, validation]

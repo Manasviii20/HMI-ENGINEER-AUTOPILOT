@@ -25,6 +25,14 @@ function tempColor(temp: number): string {
   return "#2fb3ff";
 }
 
+function tempWord(temp: number, overload: boolean): string {
+  if (overload) return "overload fault";
+  if (temp >= 85) return "critical -- overheating";
+  if (temp >= 70) return "running warm";
+  if (temp >= 45) return "normal operating range";
+  return "cool / idle";
+}
+
 export function PlantScene(props: PlantSceneProps) {
   const {
     motorRunning,
@@ -49,27 +57,51 @@ export function PlantScene(props: PlantSceneProps) {
   const motorColor = overload ? "#ff4d4f" : tempColor(temperature);
   const packages = [0, 1, 2, 3];
 
+  const whatIsHappening = emergencyStop
+    ? "Emergency stop is pressed: the motor and belt are locked out and cannot run."
+    : overload
+    ? "Motor is drawing too much current (overload): it has been commanded to stop."
+    : !communication
+    ? "PLC communication is lost: the HMI is no longer receiving live confirmation from the controller."
+    : running
+    ? `Line is running normally at ${speed.toFixed(0)} rpm -- watch the chevrons and boxes move with the belt.`
+    : "Line is stopped: no motion on the belt, motor idle.";
+
   return (
-    <div className="rounded-lg border border-[var(--border)] bg-[#0b121a] p-3 overflow-hidden">
+    <div className="rounded-lg border border-[var(--border)] p-3 overflow-hidden" style={{ background: "var(--panel-2)" }}>
+      {/* Plain-language explanation of what the animation is currently showing */}
+      <div
+        key={whatIsHappening}
+        className="anim-rise-in mb-2 text-xs px-3 py-2 rounded border flex items-center gap-2"
+        style={{
+          borderColor: emergencyStop || overload || !communication ? "var(--crit)" : "var(--border)",
+          background:
+            emergencyStop || overload || !communication ? "color-mix(in srgb, var(--crit) 12%, transparent)" : "var(--panel)",
+        }}
+      >
+        <span aria-hidden>{emergencyStop || overload || !communication ? "⚠" : running ? "▶" : "⏸"}</span>
+        <span>{whatIsHappening}</span>
+      </div>
+
       <svg viewBox="0 0 640 220" className="w-full h-auto" role="img" aria-label="Live packaging line diagram">
         <defs>
           <clipPath id="beltClip">
             <rect x="60" y="150" width="420" height="16" rx="3" />
           </clipPath>
           <radialGradient id="motorGrad" cx="40%" cy="35%" r="70%">
-            <stop offset="0%" stopColor="#2a3a4a" />
-            <stop offset="100%" stopColor="#111a24" />
+            <stop offset="0%" stopColor="var(--border)" />
+            <stop offset="100%" stopColor="var(--panel)" />
           </radialGradient>
         </defs>
 
         {/* floor */}
-        <rect x="0" y="190" width="640" height="30" fill="#0d151f" />
+        <rect x="0" y="190" width="640" height="30" fill="var(--panel)" />
         <line x1="0" y1="190" x2="640" y2="190" stroke="var(--border)" strokeWidth="1" />
 
         {/* conveyor frame */}
-        <rect x="55" y="146" width="430" height="24" rx="5" fill="#16202c" stroke="var(--border)" />
-        <rect x="60" y="150" width="420" height="16" rx="3" fill="#0d151f" />
-        {/* belt motion chevrons */}
+        <rect x="55" y="146" width="430" height="24" rx="5" fill="var(--panel-2)" stroke="var(--border)" />
+        <rect x="60" y="150" width="420" height="16" rx="3" fill="var(--panel)" />
+        {/* belt motion chevrons -- moving = material flow direction */}
         <g clipPath="url(#beltClip)">
           <g
             className={running ? "anim-belt" : ""}
@@ -79,7 +111,7 @@ export function PlantScene(props: PlantSceneProps) {
               <path
                 key={i}
                 d={`M ${i * 20 - 10} 150 l 6 16 l 6 -16`}
-                stroke={running ? "#2fb3ff" : "#33465a"}
+                stroke={running ? "#2fb3ff" : "var(--border)"}
                 strokeWidth="2"
                 fill="none"
                 opacity={0.6}
@@ -88,8 +120,8 @@ export function PlantScene(props: PlantSceneProps) {
           </g>
         </g>
         {/* support legs */}
-        <rect x="80" y="170" width="8" height="20" fill="#2a3a4a" />
-        <rect x="450" y="170" width="8" height="20" fill="#2a3a4a" />
+        <rect x="80" y="170" width="8" height="20" fill="var(--border)" />
+        <rect x="450" y="170" width="8" height="20" fill="var(--border)" />
 
         {/* packages riding the belt */}
         {running &&
@@ -111,7 +143,7 @@ export function PlantScene(props: PlantSceneProps) {
 
         {/* product sensor at belt exit */}
         <g transform="translate(470, 120)">
-          <rect x="-4" y="0" width="8" height="34" fill="#2a3a4a" />
+          <rect x="-4" y="0" width="8" height="34" fill="var(--border)" />
           <circle
             cx="0"
             cy="0"
@@ -125,7 +157,7 @@ export function PlantScene(props: PlantSceneProps) {
           SENSOR
         </text>
 
-        {/* motor housing */}
+        {/* motor housing -- spins while running, color = temperature */}
         <g transform="translate(40, 158)">
           <circle r="34" fill="url(#motorGrad)" stroke={motorColor} strokeWidth="2.5" />
           <g className={running ? "anim-spin" : overload ? "anim-flicker" : ""}>
@@ -155,7 +187,7 @@ export function PlantScene(props: PlantSceneProps) {
 
         {/* emergency stop button */}
         <g transform="translate(560, 60)">
-          <rect x="-30" y="-30" width="60" height="60" rx="8" fill="#16202c" stroke="var(--border)" />
+          <rect x="-30" y="-30" width="60" height="60" rx="8" fill="var(--panel-2)" stroke="var(--border)" />
           <circle
             r="20"
             fill={emergencyStop ? "#ff4d4f" : "#7a1010"}
@@ -170,7 +202,7 @@ export function PlantScene(props: PlantSceneProps) {
 
         {/* comms / signal tower */}
         <g transform="translate(560, 150)">
-          <rect x="-3" y="0" width="6" height="30" fill="#2a3a4a" />
+          <rect x="-3" y="0" width="6" height="30" fill="var(--border)" />
           <circle
             cx="0"
             cy="-6"
@@ -209,8 +241,48 @@ export function PlantScene(props: PlantSceneProps) {
         `}</style>
       </svg>
 
+      {/* Legend explaining what every animated element means */}
+      <div className="mt-2 pt-2 border-t border-[var(--border)] grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-1.5 text-[10px] text-[var(--text-dim)]">
+        <div className="flex items-center gap-1.5">
+          <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: "#2fb3ff" }} />
+          Motor cool / normal
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: "#f5a623" }} />
+          Warm (45–70°C)
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: "#ff7043" }} />
+          Hot (70–85°C)
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="w-2.5 h-2.5 rounded-full shrink-0 anim-pulse" style={{ background: "#ff4d4f", color: "#ff4d4f" }} />
+          Critical / fault (≥85°C or overload)
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="mono" style={{ color: "#2fb3ff" }}>
+            ›
+          </span>
+          Moving chevrons = belt/material flow
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: "#c98a4b" }} />
+          Package on conveyor
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="w-2.5 h-2.5 rounded-full shrink-0 anim-pulse" style={{ background: "#35c76a", color: "#35c76a" }} />
+          Sensor / comms active (pulsing)
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="w-2.5 h-2.5 rounded-full shrink-0 anim-flash" style={{ background: "#ff4d4f", color: "#ff4d4f" }} />
+          Flashing = alarm / fault / E-Stop pressed
+        </div>
+      </div>
+
       <div className="flex items-center justify-between mt-2 text-[10px] text-[var(--text-dim)] px-1">
-        <span>Live physical process view — driven by the same tag values shown below</span>
+        <span>
+          Motor status: <span className="mono">{tempWord(temperature, overload)}</span>
+        </span>
         <span className={`font-semibold ${running ? "text-emerald-400" : "text-[var(--text-dim)]"}`}>
           {emergencyStop ? "E-STOPPED" : running ? "RUNNING" : "STOPPED"}
         </span>

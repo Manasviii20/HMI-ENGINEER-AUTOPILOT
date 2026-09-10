@@ -62,8 +62,21 @@ export function GraphView({
   const graphKey = `${graph.nodes.length}-${graph.edges.length}`;
 
   return (
-    <div className="overflow-auto">
-      <svg key={graphKey} width={layout.width} height={layout.height} className="min-w-full">
+    <div className="flex flex-col gap-2">
+      <div className="text-[11px] text-[var(--text-dim)] flex flex-wrap items-center gap-x-4 gap-y-1">
+        {KIND_ORDER.map((k) => (
+          <span key={k} className="flex items-center gap-1.5">
+            <span className="w-2.5 h-2.5 rounded-sm border" style={{ borderColor: KIND_COLOR[k], background: `${KIND_COLOR[k]}22` }} />
+            {k}
+          </span>
+        ))}
+        <span className="flex items-center gap-1.5 ml-auto">
+          <span className="w-4 h-0.5" style={{ background: "var(--accent)" }} />
+          {selectedNode ? "connected to selected node" : "dependency link -- click a node to trace it"}
+        </span>
+      </div>
+      <div className="overflow-auto">
+        <svg key={graphKey} width={layout.width} height={layout.height} className="min-w-full">
         {KIND_ORDER.map((k) => (
           <text key={k} x={layout.colX[k]} y={16} fill={KIND_COLOR[k]} fontSize={11} fontWeight={700}>
             {k.toUpperCase()}
@@ -87,7 +100,7 @@ export function GraphView({
               y1={y1}
               x2={x2}
               y2={y2}
-              stroke={highlighted ? "var(--accent)" : "#2a3a4a"}
+              stroke={highlighted ? "var(--accent)" : "var(--border)"}
               strokeWidth={highlighted ? 2.2 : 1.5}
               opacity={connectedNodeIds && !highlighted ? 0.25 : 1}
               className="anim-draw transition-all duration-300"
@@ -114,22 +127,23 @@ export function GraphView({
                 width={180}
                 height={22}
                 rx={4}
-                fill={selectedNode === id ? `${KIND_COLOR[p.kind]}33` : "#16202c"}
+                fill={selectedNode === id ? `${KIND_COLOR[p.kind]}33` : "var(--panel-2)"}
                 stroke={KIND_COLOR[p.kind]}
-                strokeWidth={selectedNode === id ? 2.5 : 1}
+                strokeWidth={selectedNode === id ? 2.5 : 1.5}
                 className="transition-all duration-200"
               >
                 {onNodeClick && (
                   <title>{`${p.label} (${p.kind}) — click for impact analysis`}</title>
                 )}
               </rect>
-              <text x={p.x + 8} y={p.y + 15} fontSize={11} fill="#e4ecf3">
+              <text x={p.x + 8} y={p.y + 15} fontSize={11} fill="var(--text)">
                 {String(p.label).slice(0, 24)}
               </text>
             </g>
           );
         })}
-      </svg>
+        </svg>
+      </div>
     </div>
   );
 }

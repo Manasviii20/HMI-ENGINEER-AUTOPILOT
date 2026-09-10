@@ -240,7 +240,7 @@ export function VirtualHmi() {
                       </div>
                       <span
                         className="text-xs font-semibold px-2 py-0.5 rounded transition-colors-smooth"
-                        style={{ color: firing ? SEVERITY_COLOR[a.severity] : "#8fa3b5" }}
+                        style={{ color: firing ? SEVERITY_COLOR[a.severity] : "var(--text-dim)" }}
                       >
                         {firing ? `ACTIVE (${a.severity})` : "NORMAL"}
                       </span>
