@@ -1,0 +1,132 @@
+import { useEffect, useState } from "react";
+import { Panel } from "../components/Panel";
+import { StatusPill } from "../components/StatusPill";
+import { GraphView } from "../components/GraphView";
+import { api, type ApplyLogEntry, type EngineeringPlan, type GraphData } from "../services/api";
+import { useProject } from "../services/ProjectContext";
+
+const DEFAULT_REQUIREMENT =
+  "Add a motor overview screen showing motor speed, temperature and overload status. " +
+  "Add a high-temperature alarm and make the screen accessible from main navigation.";
+
+export function Engineering() {
+  const { summary, refreshProject, refreshValidation } = useProject();
+  const [graph, setGraph] = useState<GraphData | null>(null);
+  const [requirement, setRequirement] = useState(DEFAULT_REQUIREMENT);
+  const [plan, setPlan] = useState<EngineeringPlan | null>(null);
+  const [mockMode, setMockMode] = useState(false);
+  const [log, setLog] = useState<ApplyLogEntry[] | null>(null);
+  const [planning, setPlanning] = useState(false);
+  const [applying, setApplying] = useState(false);
+
+  const loadGraph = () => api.getGraph().then(setGraph);
+
+  useEffect(() => {
+    loadGraph();
+  }, [summary]);
+
+  async function handlePlan() {
+    setPlanning(true);
+    setLog(null);
+    try {
+      const res = await api.plan(requirement);
+      setPlan(res.plan);
+      setMockMode(res.mock_mode);
+    } finally {
+      setPlanning(false);
+    }
+  }
+
+  async function handleApply() {
+    if (!plan) return;
+    setApplying(true);
+    try {
+      const res = await api.apply(plan);
+      setLog(res.log);
+      await refreshProject();
+      await refreshValidation();
+      await loadGraph();
+    } finally {
+      setApplying(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-6">
+      <Panel title="Project Graph" right={<span className="text-xs text-[var(--text-dim)]">NetworkX-derived dependency graph</span>}>
+        {graph ? <GraphView graph={graph} /> : <div className="text-[var(--text-dim)] text-sm">Loading graph...</div>}
+      </Panel>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Panel title="Engineering Requirement">
+          <textarea
+            className="w-full h-28 bg-[var(--panel-2)] border border-[var(--border)] rounded p-3 text-sm resize-none focus:outline-none focus:border-[var(--accent)]"
+            value={requirement}
+            onChange={(e) => setRequirement(e.target.value)}
+          />
+          <div className="flex items-center justify-between mt-3">
+            <span className="text-xs text-[var(--text-dim)]">
+              {mockMode ? "Mock planner (no LLM API key configured)" : "LLM-backed planner"}
+            </span>
+            <button
+              className="px-4 py-2 rounded bg-[var(--accent)] text-[#03121c] font-semibold text-sm hover:opacity-90 disabled:opacity-50"
+              onClick={handlePlan}
+              disabled={planning || !requirement.trim()}
+            >
+              {planning ? "Generating..." : "Generate Engineering Plan"}
+            </button>
+          </div>
+        </Panel>
+
+        <Panel title="Engineering Plan">
+          {!plan && <div className="text-sm text-[var(--text-dim)]">No plan generated yet.</div>}
+          {plan && (
+            <div className="flex flex-col gap-3">
+              <div className="text-sm text-[var(--text-dim)]">{plan.summary}</div>
+              <div className="flex flex-col gap-1 max-h-56 overflow-auto">
+                {plan.actions.map((a, i) => (
+                  <div key={i} className="text-xs mono bg-[var(--panel-2)] rounded px-2 py-1.5 border border-[var(--border)]">
+                    <span className="text-[var(--accent)] font-semibold">{a.action}</span>{" "}
+                    {a.screen && <span>screen={a.screen} </span>}
+                    {a.object_type && <span>type={a.object_type} </span>}
+                    {a.tag && <span>tag={a.tag} </span>}
+                    {a.alarm && <span>alarm={a.alarm} threshold={a.threshold} </span>}
+                    {a.from_screen && <span>{a.from_screen} → {a.to_screen} </span>}
+                  </div>
+                ))}
+              </div>
+              {plan.unknowns.length > 0 && (
+                <div className="text-xs bg-amber-500/10 border border-amber-500/30 rounded p-2 text-amber-400">
+                  UNKNOWN / requires engineer input: {plan.unknowns.join("; ")}
+                </div>
+              )}
+              <button
+                className="px-4 py-2 rounded bg-emerald-500/90 text-[#03120b] font-semibold text-sm hover:opacity-90 disabled:opacity-50 self-start"
+                onClick={handleApply}
+                disabled={applying}
+              >
+                {applying ? "Applying..." : "Apply Plan (Generate HMI)"}
+              </button>
+            </div>
+          )}
+        </Panel>
+      </div>
+
+      {log && (
+        <Panel title="Generated Changes">
+          <div className="flex flex-col gap-2">
+            {log.map((entry, i) => (
+              <div key={i} className="flex items-center justify-between text-sm bg-[var(--panel-2)] rounded px-3 py-2 border border-[var(--border)]">
+                <span className="mono">{entry.action}</span>
+                <div className="flex items-center gap-3">
+                  {entry.reason && <span className="text-xs text-[var(--text-dim)]">{entry.reason}</span>}
+                  <StatusPill status={entry.status} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </Panel>
+      )}
+    </div>
+  );
+}
