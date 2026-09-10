@@ -52,3 +52,8 @@ class FactoryRunRequest(BaseModel):
     count: int = 50
     seed: int = 42
     max_defects: int = 2
+
+
+class AutopilotRunRequest(BaseModel):
+    project_id: str = "demo"
+    requirement: str

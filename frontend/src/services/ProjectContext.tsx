@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
-import { api, type Project, type ProjectSummary, type ValidationResult } from "./api";
+import { api, type AutopilotResult, type Project, type ProjectSummary, type ValidationResult } from "./api";
 
 export interface ActivityEntry {
   id: number;
@@ -22,11 +22,13 @@ interface ProjectContextValue {
   hasEngineeringActivity: boolean;
   hasCorrectionActivity: boolean;
   hasSimulationActivity: boolean;
+  autopilotResult: AutopilotResult | null;
   refreshProject: () => Promise<void>;
   refreshValidation: () => Promise<void>;
   setApproved: (v: boolean) => void;
   pushActivity: (stage: ActivityEntry["stage"], text: string) => void;
   setExported: (v: boolean) => void;
+  runAutopilot: (requirement: string) => Promise<AutopilotResult>;
 }
 
 const Ctx = createContext<ProjectContextValue | null>(null);
@@ -41,6 +43,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   const [backendOnline, setBackendOnline] = useState<boolean | null>(null);
   const [activity, setActivity] = useState<ActivityEntry[]>([]);
   const [exported, setExported] = useState(false);
+  const [autopilotResult, setAutopilotResult] = useState<AutopilotResult | null>(null);
   const projectId = "demo";
   const initialized = useRef(false);
   const activityId = useRef(0);
@@ -89,6 +92,52 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     })();
   }, [refreshProject, refreshValidation]);
 
+  const runAutopilot = useCallback(
+    async (requirement: string) => {
+      setExported(false);
+      setApprovedState(false);
+      const result = await api.autopilotRun(requirement);
+      setAutopilotResult(result);
+      await refreshProject();
+      setValidation(result.validation);
+      activityId.current += 1;
+      setActivity((prev) =>
+        [
+          {
+            id: activityId.current,
+            ts: Date.now(),
+            stage: "generate" as const,
+            text: `AI engineering complete: ${result.apply_log.filter((l) => l.status === "APPLIED").length}/${result.apply_log.length} action(s) applied for "${requirement.slice(0, 60)}${requirement.length > 60 ? "..." : ""}"`,
+          },
+          ...prev,
+        ].slice(0, 30)
+      );
+      if (result.correction) {
+        activityId.current += 1;
+        setActivity((prev) =>
+          [
+            {
+              id: activityId.current,
+              ts: Date.now(),
+              stage: "correction" as const,
+              text: `AI self-correction ran ${result.correction!.cycles.length} cycle(s) -- final status ${result.correction!.final_status}`,
+            },
+            ...prev,
+          ].slice(0, 30)
+        );
+      }
+      activityId.current += 1;
+      setActivity((prev) =>
+        [
+          { id: activityId.current, ts: Date.now(), stage: "simulation" as const, text: "Virtual machine simulation started" },
+          ...prev,
+        ].slice(0, 30)
+      );
+      return result;
+    },
+    [refreshProject]
+  );
+
   const hasEngineeringActivity = activity.some((a) => a.stage === "generate");
   const hasCorrectionActivity = activity.some((a) => a.stage === "correction");
   const hasSimulationActivity = activity.some((a) => a.stage === "simulation");
@@ -109,11 +158,13 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         hasEngineeringActivity,
         hasCorrectionActivity,
         hasSimulationActivity,
+        autopilotResult,
         refreshProject,
         refreshValidation,
         setApproved: setApprovedState,
         pushActivity,
         setExported,
+        runAutopilot,
       }}
     >
       {children}

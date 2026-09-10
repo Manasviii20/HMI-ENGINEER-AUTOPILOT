@@ -165,10 +165,132 @@ def filling_machine(instance: int) -> Project:
                     tags=tags, screens=screens, alarms=alarms, navigation=_nav(["dashboard", "alarms"]), dependencies=deps)
 
 
+def hvac_system(instance: int) -> Project:
+    p = f"HVAC{instance:02d}"
+    tags = [
+        Tag(name=f"{p}_FanRun", data_type="BOOL", description="Supply fan running", source="PLC"),
+        Tag(name=f"{p}_SupplyTemp", data_type="REAL", unit="C", description="Supply air temperature", source="PLC"),
+        Tag(name=f"{p}_ReturnTemp", data_type="REAL", unit="C", description="Return air temperature", source="PLC"),
+        Tag(name=f"{p}_FilterDirty", data_type="BOOL", description="Filter differential pressure high", source="PLC"),
+    ]
+    obj_dash = [
+        HmiObject(id=f"obj_{p}_fan", object_type="STATUS_INDICATOR", tag=f"{p}_FanRun", label="Supply Fan"),
+        HmiObject(id=f"obj_{p}_supply", object_type="GAUGE", tag=f"{p}_SupplyTemp", label="Supply Air Temp"),
+    ]
+    screens = [Screen(id="dashboard", name="Dashboard", objects=obj_dash),
+               Screen(id="alarms", name="Alarms", objects=[HmiObject(id=f"obj_{p}_alarms", object_type="ALARM_INDICATOR", tag=None, label="Active Alarms")])]
+    alarms = [
+        Alarm(id=f"alm_{p}_filter", name="Filter Service Required", tag=f"{p}_FilterDirty", condition="EQ", threshold=1, severity="MEDIUM"),
+        Alarm(id=f"alm_{p}_supplyhigh", name="Supply Air Over Temperature", tag=f"{p}_SupplyTemp", condition="GT", threshold=30, severity="HIGH"),
+    ]
+    deps = _deps({"dashboard": obj_dash}, alarms)
+    return Project(project=ProjectMeta(name=f"HVAC Control System {instance}", description="Synthetic HVAC air-handling variant"),
+                    tags=tags, screens=screens, alarms=alarms, navigation=_nav(["dashboard", "alarms"]), dependencies=deps)
+
+
+def boiler_unit(instance: int) -> Project:
+    p = f"Boil{instance:02d}"
+    tags = [
+        Tag(name=f"{p}_BurnerOn", data_type="BOOL", description="Burner firing", source="PLC"),
+        Tag(name=f"{p}_SteamPressure", data_type="REAL", unit="bar", description="Steam drum pressure", source="PLC"),
+        Tag(name=f"{p}_WaterLevel", data_type="REAL", unit="%", description="Drum water level", source="PLC"),
+        Tag(name=f"{p}_FlameFailure", data_type="BOOL", description="Flame failure detected", source="PLC"),
+    ]
+    obj_dash = [
+        HmiObject(id=f"obj_{p}_burner", object_type="STATUS_INDICATOR", tag=f"{p}_BurnerOn", label="Burner"),
+        HmiObject(id=f"obj_{p}_pressure", object_type="GAUGE", tag=f"{p}_SteamPressure", label="Steam Pressure"),
+        HmiObject(id=f"obj_{p}_level", object_type="GAUGE", tag=f"{p}_WaterLevel", label="Water Level"),
+    ]
+    screens = [Screen(id="dashboard", name="Dashboard", objects=obj_dash),
+               Screen(id="alarms", name="Alarms", objects=[HmiObject(id=f"obj_{p}_alarms", object_type="ALARM_INDICATOR", tag=None, label="Active Alarms")])]
+    alarms = [
+        Alarm(id=f"alm_{p}_flame", name="Flame Failure", tag=f"{p}_FlameFailure", condition="EQ", threshold=1, severity="CRITICAL"),
+        Alarm(id=f"alm_{p}_lowwater", name="Low Drum Water Level", tag=f"{p}_WaterLevel", condition="LT", threshold=20, severity="CRITICAL"),
+    ]
+    deps = _deps({"dashboard": obj_dash}, alarms)
+    return Project(project=ProjectMeta(name=f"Boiler Monitoring System {instance}", description="Synthetic boiler monitoring variant"),
+                    tags=tags, screens=screens, alarms=alarms, navigation=_nav(["dashboard", "alarms"]), dependencies=deps)
+
+
+def palletizer(instance: int) -> Project:
+    p = f"Pal{instance:02d}"
+    tags = [
+        Tag(name=f"{p}_CycleActive", data_type="BOOL", description="Palletizing cycle active", source="PLC"),
+        Tag(name=f"{p}_LayerCount", data_type="INT", description="Layers stacked", source="PLC"),
+        Tag(name=f"{p}_GripperFault", data_type="BOOL", description="Gripper fault", source="PLC"),
+        Tag(name=f"{p}_StackHeight", data_type="REAL", unit="mm", description="Stack height", source="PLC"),
+    ]
+    obj_dash = [
+        HmiObject(id=f"obj_{p}_cycle", object_type="STATUS_INDICATOR", tag=f"{p}_CycleActive", label="Cycle Active"),
+        HmiObject(id=f"obj_{p}_layers", object_type="VALUE_DISPLAY", tag=f"{p}_LayerCount", label="Layer Count"),
+        HmiObject(id=f"obj_{p}_height", object_type="GAUGE", tag=f"{p}_StackHeight", label="Stack Height"),
+    ]
+    screens = [Screen(id="dashboard", name="Dashboard", objects=obj_dash),
+               Screen(id="alarms", name="Alarms", objects=[HmiObject(id=f"obj_{p}_alarms", object_type="ALARM_INDICATOR", tag=None, label="Active Alarms")])]
+    alarms = [
+        Alarm(id=f"alm_{p}_gripper", name="Gripper Fault", tag=f"{p}_GripperFault", condition="EQ", threshold=1, severity="HIGH"),
+    ]
+    deps = _deps({"dashboard": obj_dash}, alarms)
+    return Project(project=ProjectMeta(name=f"Automated Palletizer {instance}", description="Synthetic palletizer cell variant"),
+                    tags=tags, screens=screens, alarms=alarms, navigation=_nav(["dashboard", "alarms"]), dependencies=deps)
+
+
+def cnc_machine(instance: int) -> Project:
+    p = f"CNC{instance:02d}"
+    tags = [
+        Tag(name=f"{p}_SpindleOn", data_type="BOOL", description="Spindle running", source="PLC"),
+        Tag(name=f"{p}_SpindleLoad", data_type="REAL", unit="%", description="Spindle load", source="PLC"),
+        Tag(name=f"{p}_ToolWear", data_type="REAL", unit="%", description="Tool wear estimate", source="PLC"),
+        Tag(name=f"{p}_CoolantLow", data_type="BOOL", description="Coolant level low", source="PLC"),
+    ]
+    obj_dash = [
+        HmiObject(id=f"obj_{p}_spindle", object_type="STATUS_INDICATOR", tag=f"{p}_SpindleOn", label="Spindle"),
+        HmiObject(id=f"obj_{p}_load", object_type="GAUGE", tag=f"{p}_SpindleLoad", label="Spindle Load"),
+        HmiObject(id=f"obj_{p}_wear", object_type="TREND", tag=f"{p}_ToolWear", label="Tool Wear Trend"),
+    ]
+    screens = [Screen(id="dashboard", name="Dashboard", objects=obj_dash),
+               Screen(id="alarms", name="Alarms", objects=[HmiObject(id=f"obj_{p}_alarms", object_type="ALARM_INDICATOR", tag=None, label="Active Alarms")])]
+    alarms = [
+        Alarm(id=f"alm_{p}_coolant", name="Coolant Level Low", tag=f"{p}_CoolantLow", condition="EQ", threshold=1, severity="MEDIUM"),
+        Alarm(id=f"alm_{p}_load", name="Spindle Overload", tag=f"{p}_SpindleLoad", condition="GT", threshold=95, severity="HIGH"),
+    ]
+    deps = _deps({"dashboard": obj_dash}, alarms)
+    return Project(project=ProjectMeta(name=f"CNC Machine Monitoring {instance}", description="Synthetic CNC monitoring variant"),
+                    tags=tags, screens=screens, alarms=alarms, navigation=_nav(["dashboard", "alarms"]), dependencies=deps)
+
+
+def assembly_line(instance: int) -> Project:
+    p = f"Asm{instance:02d}"
+    tags = [
+        Tag(name=f"{p}_LineRun", data_type="BOOL", description="Assembly line running", source="PLC"),
+        Tag(name=f"{p}_CycleTime", data_type="REAL", unit="s", description="Station cycle time", source="PLC"),
+        Tag(name=f"{p}_RejectRate", data_type="REAL", unit="%", description="Reject rate", source="PLC"),
+        Tag(name=f"{p}_StationFault", data_type="BOOL", description="Station fault", source="PLC"),
+    ]
+    obj_dash = [
+        HmiObject(id=f"obj_{p}_run", object_type="STATUS_INDICATOR", tag=f"{p}_LineRun", label="Line Run"),
+        HmiObject(id=f"obj_{p}_cycle", object_type="GAUGE", tag=f"{p}_CycleTime", label="Cycle Time"),
+        HmiObject(id=f"obj_{p}_reject", object_type="TREND", tag=f"{p}_RejectRate", label="Reject Rate Trend"),
+    ]
+    screens = [Screen(id="dashboard", name="Dashboard", objects=obj_dash),
+               Screen(id="alarms", name="Alarms", objects=[HmiObject(id=f"obj_{p}_alarms", object_type="ALARM_INDICATOR", tag=None, label="Active Alarms")])]
+    alarms = [
+        Alarm(id=f"alm_{p}_fault", name="Station Fault", tag=f"{p}_StationFault", condition="EQ", threshold=1, severity="HIGH"),
+    ]
+    deps = _deps({"dashboard": obj_dash}, alarms)
+    return Project(project=ProjectMeta(name=f"Assembly Line {instance}", description="Synthetic assembly line variant"),
+                    tags=tags, screens=screens, alarms=alarms, navigation=_nav(["dashboard", "alarms"]), dependencies=deps)
+
+
 TEMPLATES = {
     "conveyor_line": conveyor_line,
     "packaging_machine": packaging_machine,
     "pump_station": pump_station,
     "tank_system": tank_system,
     "filling_machine": filling_machine,
+    "hvac_system": hvac_system,
+    "boiler_unit": boiler_unit,
+    "palletizer": palletizer,
+    "cnc_machine": cnc_machine,
+    "assembly_line": assembly_line,
 }

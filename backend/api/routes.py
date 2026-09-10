@@ -10,7 +10,7 @@ from fastapi.responses import PlainTextResponse
 from backend.api.schemas import (
     LoadProjectRequest, PlanRequest, ApplyRequest, ScenarioRequest,
     ApproveRequest, BreakBindingRequest, ScriptRequest, ImportTagsRequest, MentorRequest,
-    FactoryRunRequest,
+    FactoryRunRequest, AutopilotRunRequest,
 )
 from backend.api import store
 from backend.parser.project_parser import parse_project_dict, summarize
@@ -101,6 +101,43 @@ def engineering_apply(req: ApplyRequest):
     log = apply_plan(project, plan)
     store.set_project(req.project_id, project, unapprove=True)
     return {"log": log, "project": project.model_dump(), "summary": summarize(project)}
+
+
+@router.post("/autopilot/run")
+async def autopilot_run(req: AutopilotRunRequest):
+    """Runs the full customer-facing autopilot pipeline in one call: reset the
+    machine model, interpret the requirement into an EngineeringPlan, apply it
+    (create tags/screens/objects/alarms/navigation), validate the result, and
+    auto-correct if anything failed. This is the same real plan/apply/validate/
+    self-correction code used everywhere else in the app -- just chained
+    together so the frontend can show one continuous loading experience
+    instead of the customer operating each engineering step by hand."""
+    project = store.load_demo()
+    store.set_project(req.project_id, project)
+
+    plan = generate_plan(req.requirement, project)
+    log = apply_plan(project, plan)
+    store.set_project(req.project_id, project, unapprove=True)
+
+    validation = run_full_validation(project)
+    correction = None
+    if validation["status"] != "PASS":
+        correction = run_self_correction(project)
+        validation = correction["final_validation"]
+
+    simulator.start()
+    simulator.set_scenario("NORMAL")
+
+    return {
+        "project_id": req.project_id,
+        "requirement": req.requirement,
+        "plan": plan.model_dump(),
+        "apply_log": log,
+        "validation": validation,
+        "correction": correction,
+        "summary": summarize(project),
+        "mock_mode": llm_client.mock_mode,
+    }
 
 
 @router.post("/simulation/start")

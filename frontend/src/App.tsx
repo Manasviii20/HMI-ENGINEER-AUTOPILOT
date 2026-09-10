@@ -1,248 +1,113 @@
-import { HashRouter, NavLink, Route, Routes, useLocation } from "react-router-dom";
+import { useEffect, type ReactNode } from "react";
+import { HashRouter, Navigate, NavLink, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { ProjectProvider, useProject } from "./services/ProjectContext";
 import { ToastHost } from "./components/ToastHost";
 import { ThemeToggle } from "./components/ThemeToggle";
 import { useTheme } from "./hooks/useTheme";
-import { Dashboard } from "./pages/Dashboard";
+import { WorkspaceStepper, type WorkspaceStage } from "./components/WorkspaceStepper";
+import { Landing } from "./pages/Landing";
+import { Pipeline } from "./pages/Pipeline";
 import { Engineering } from "./pages/Engineering";
 import { ProjectGraph } from "./pages/ProjectGraph";
 import { VirtualHmi } from "./pages/VirtualHmi";
 import { Validation } from "./pages/Validation";
 import { Review } from "./pages/Review";
-import { Builders } from "./pages/Builders";
-import { Scripts } from "./pages/Scripts";
-import { Migration } from "./pages/Migration";
-import { Mentor } from "./pages/Mentor";
-import { Logs } from "./pages/Logs";
 import { DataFactory } from "./pages/DataFactory";
 
-function GridIcon() {
+function StatusChip({ label, value, tone }: { label: string; value: string; tone: "ok" | "warn" | "bad" | "neutral" }) {
+  const color =
+    tone === "ok" ? "var(--ok)" : tone === "warn" ? "var(--warn)" : tone === "bad" ? "var(--crit)" : "var(--text-dim)";
   return (
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
-      <rect x="3" y="3" width="8" height="8" rx="1.5" stroke="currentColor" strokeWidth="2" />
-      <rect x="13" y="3" width="8" height="8" rx="1.5" stroke="currentColor" strokeWidth="2" />
-      <rect x="3" y="13" width="8" height="8" rx="1.5" stroke="currentColor" strokeWidth="2" />
-      <rect x="13" y="13" width="8" height="8" rx="1.5" stroke="currentColor" strokeWidth="2" />
-    </svg>
-  );
-}
-function CpuIcon() {
-  return (
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
-      <rect x="6" y="6" width="12" height="12" rx="1.5" stroke="currentColor" strokeWidth="2" />
-      <rect x="10" y="10" width="4" height="4" stroke="currentColor" strokeWidth="1.5" />
-      <path d="M9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-    </svg>
-  );
-}
-function MonitorIcon() {
-  return (
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
-      <rect x="3" y="4" width="18" height="12" rx="1.5" stroke="currentColor" strokeWidth="2" />
-      <path d="M8 20h8M12 16v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-    </svg>
-  );
-}
-function ShieldCheckIcon() {
-  return (
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
-      <path d="M12 3l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
-      <path d="M9 12l2 2 4-4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-function ClipboardCheckIcon() {
-  return (
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
-      <rect x="5" y="4" width="14" height="17" rx="1.5" stroke="currentColor" strokeWidth="2" />
-      <path d="M9 3h6v3H9z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
-      <path d="M9 13l2 2 4-4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-function WrenchIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-      <path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18v3h3l6.3-6.3a4 4 0 0 0 5.4-5.4l-2.8 2.8-2-2 2.8-2.8z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
-    </svg>
-  );
-}
-function CodeIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-      <path d="M9 8l-5 4 5 4M15 8l5 4-5 4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-function SwapIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-      <path d="M4 7h13l-3-3M20 17H7l3 3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-function ChatIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-      <path d="M4 5h16v11H8l-4 4V5z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
-    </svg>
-  );
-}
-function ListIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-      <path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-    </svg>
-  );
-}
-function ShareIcon() {
-  return (
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
-      <circle cx="5" cy="12" r="2.5" stroke="currentColor" strokeWidth="1.8" />
-      <circle cx="18" cy="6" r="2.5" stroke="currentColor" strokeWidth="1.8" />
-      <circle cx="18" cy="18" r="2.5" stroke="currentColor" strokeWidth="1.8" />
-      <path d="M7.2 11L15.8 6.8M7.2 13L15.8 17.2" stroke="currentColor" strokeWidth="1.6" />
-    </svg>
-  );
-}
-function FactoryIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-      <path d="M3 20V11l5 3.5V11l5 3.5V9l6 4v7H3z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
-      <path d="M7 20v-3M12 20v-3M17 20v-3" stroke="currentColor" strokeWidth="1.6" />
-    </svg>
+    <div className="flex flex-col leading-tight">
+      <span className="text-[9px] uppercase tracking-wider text-[var(--text-dim)]">{label}</span>
+      <span className="text-xs font-semibold" style={{ color }}>
+        {value}
+      </span>
+    </div>
   );
 }
 
-const NAV = [
-  { to: "/", label: "Overview", icon: GridIcon },
-  { to: "/engineering", label: "Engineering", icon: CpuIcon },
-  { to: "/graph", label: "Project Graph", icon: ShareIcon },
-  { to: "/hmi", label: "Virtual HMI", icon: MonitorIcon },
-  { to: "/validation", label: "Validation", icon: ShieldCheckIcon },
-  { to: "/review", label: "Review / Export", icon: ClipboardCheckIcon },
-];
-
-const TOOLS_NAV = [
-  { to: "/factory", label: "Data Factory", icon: FactoryIcon },
-  { to: "/builders", label: "Builders", icon: WrenchIcon },
-  { to: "/scripts", label: "Scripts", icon: CodeIcon },
-  { to: "/migration", label: "Migration", icon: SwapIcon },
-  { to: "/mentor", label: "Mentor", icon: ChatIcon },
-  { to: "/logs", label: "System Log", icon: ListIcon },
-];
-
-function Shell() {
-  const { summary, validation, error, backendOnline } = useProject();
+function WorkspaceShell({ children }: { children: ReactNode }) {
+  const { summary, validation, approved, exported, autopilotResult, hasSimulationActivity, backendOnline, error } =
+    useProject();
   const location = useLocation();
+  const navigate = useNavigate();
   const [theme, toggleTheme] = useTheme();
+
+  useEffect(() => {
+    if (!autopilotResult) {
+      navigate("/", { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autopilotResult]);
+
+  if (!autopilotResult) return null;
+
+  const passPct = validation
+    ? Math.round((validation.summary.scenarios_passed / Math.max(1, validation.summary.scenarios_total)) * 100)
+    : null;
+
+  const stages: WorkspaceStage[] = [
+    { n: "01", path: "/workspace/engineering", label: "AI Engineering", status: "done" },
+    { n: "02", path: "/workspace/model", label: "Project Model", status: "done" },
+    { n: "03", path: "/workspace/hmi", label: "HMI & Simulation", status: hasSimulationActivity ? "done" : "pending" },
+    {
+      n: "04",
+      path: "/workspace/validation",
+      label: "Validation",
+      status: !validation ? "pending" : validation.status === "PASS" ? "done" : "attention",
+    },
+    { n: "05", path: "/workspace/review", label: "Review & Export", status: exported ? "done" : approved ? "done" : "pending" },
+  ].map((s) => ({ ...s, status: location.pathname === s.path ? "active" : s.status })) as WorkspaceStage[];
+
   return (
     <div className="min-h-screen flex flex-col">
       <header className="border-b border-[var(--border)] bg-[var(--panel)] px-6 py-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded bg-[var(--accent)]/15 border border-[var(--accent)]/40 flex items-center justify-center text-[var(--accent)] font-bold text-sm transition-transform duration-300 hover:rotate-6 hover:scale-110">
+          <NavLink to="/" className="w-8 h-8 rounded bg-[var(--accent)]/15 border border-[var(--accent)]/40 flex items-center justify-center text-[var(--accent)] font-bold text-sm shrink-0">
             HE
-          </div>
+          </NavLink>
           <div>
-            <div className="font-semibold text-sm tracking-wide">HMI Engineering Autopilot</div>
-            <div className="text-xs text-[var(--text-dim)]">
-              {summary?.project_name ?? "Loading project..."}
-            </div>
+            <div className="font-semibold text-sm tracking-wide">{summary?.project_name ?? "Project"}</div>
+            <div className="text-xs text-[var(--text-dim)]">HMI Engineering Autopilot -- Engineer Workspace</div>
           </div>
         </div>
-        <nav className="flex gap-1">
-          {NAV.map((n) => (
-            <NavLink
-              key={n.to}
-              to={n.to}
-              end={n.to === "/"}
-              className={({ isActive }) =>
-                `relative flex items-center gap-1.5 px-3 py-1.5 rounded text-sm font-medium transition-all duration-200 ${
-                  isActive
-                    ? "bg-[var(--accent)]/15 text-[var(--accent)]"
-                    : "text-[var(--text-dim)] hover:text-[var(--text)] hover:bg-[var(--accent)]/5"
-                }`
-              }
-            >
-              <n.icon />
-              {n.label}
-            </NavLink>
-          ))}
-        </nav>
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 text-xs">
-            <span className="text-[var(--text-dim)]">Validation:</span>
-            <span
-              key={validation?.status}
-              className={`px-2 py-0.5 rounded font-semibold border transition-colors-smooth anim-pop-in flex items-center gap-1.5 ${
-                validation?.status === "PASS"
-                  ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/40"
-                  : validation?.status === "FAILED"
-                  ? "bg-red-500/15 text-red-400 border-red-500/40"
-                  : "bg-[var(--panel-2)] text-[var(--text-dim)] border-[var(--border)]"
-              }`}
-            >
-              {validation?.status && (
-                <span
-                  className={`status-dot ${validation.status === "PASS" ? "" : "anim-flash"}`}
-                  style={{ background: "currentColor" }}
-                />
-              )}
-              {validation?.status ?? "..."}
-            </span>
-          </div>
+        <div className="hidden md:flex items-center gap-6">
+          <StatusChip label="AI Engineering" value="COMPLETE" tone="ok" />
+          <StatusChip
+            label="Simulation"
+            value={hasSimulationActivity ? "RUNNING" : "READY"}
+            tone={hasSimulationActivity ? "ok" : "neutral"}
+          />
+          <StatusChip
+            label="Validation"
+            value={validation ? `${passPct}% -- ${validation.status}` : "PENDING"}
+            tone={!validation ? "neutral" : validation.status === "PASS" ? "ok" : "bad"}
+          />
+          <StatusChip label="Review" value={exported ? "EXPORTED" : approved ? "APPROVED" : "PENDING"} tone={exported || approved ? "ok" : "neutral"} />
+        </div>
+        <div className="flex items-center gap-3">
+          <NavLink to="/" className="text-xs text-[var(--text-dim)] hover:text-[var(--accent)] transition-colors-smooth">
+            New Project
+          </NavLink>
           <ThemeToggle theme={theme} onToggle={toggleTheme} />
         </div>
       </header>
-      <nav className="flex gap-1 px-6 py-1.5 border-b border-[var(--border)] bg-[var(--panel-2)] overflow-x-auto">
-        <span className="text-[10px] uppercase tracking-wider text-[var(--text-dim)] flex items-center pr-2 shrink-0">
-          Engineering Tools
-        </span>
-        {TOOLS_NAV.map((n) => (
-          <NavLink
-            key={n.to}
-            to={n.to}
-            className={({ isActive }) =>
-              `flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium whitespace-nowrap transition-all duration-200 ${
-                isActive
-                  ? "bg-[var(--accent)]/15 text-[var(--accent)]"
-                  : "text-[var(--text-dim)] hover:text-[var(--text)] hover:bg-[var(--accent)]/5"
-              }`
-            }
-          >
-            <n.icon />
-            {n.label}
-          </NavLink>
-        ))}
-      </nav>
+
+      <WorkspaceStepper stages={stages} />
+
       {backendOnline === false && (
         <div className="bg-red-500/10 text-red-400 text-sm px-6 py-2 border-b border-red-500/30">
-          Backend API is unreachable at <span className="mono">http://localhost:8000</span>. Start it with{" "}
-          <span className="mono">uvicorn backend.main:app --reload --port 8000</span> — buttons won't work
-          until it's running.
+          Backend API is unreachable at <span className="mono">http://localhost:8000</span>.
         </div>
       )}
       {error && backendOnline !== false && (
-        <div className="bg-red-500/10 text-red-400 text-sm px-6 py-2 border-b border-red-500/30">
-          Error: {error}
-        </div>
+        <div className="bg-red-500/10 text-red-400 text-sm px-6 py-2 border-b border-red-500/30">Error: {error}</div>
       )}
+
       <main className="flex-1 p-6">
         <div key={location.pathname} className="anim-route-fade">
-          <Routes location={location}>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/engineering" element={<Engineering />} />
-            <Route path="/graph" element={<ProjectGraph />} />
-            <Route path="/hmi" element={<VirtualHmi />} />
-            <Route path="/validation" element={<Validation />} />
-            <Route path="/review" element={<Review />} />
-            <Route path="/factory" element={<DataFactory />} />
-            <Route path="/builders" element={<Builders />} />
-            <Route path="/scripts" element={<Scripts />} />
-            <Route path="/migration" element={<Migration />} />
-            <Route path="/mentor" element={<Mentor />} />
-            <Route path="/logs" element={<Logs />} />
-          </Routes>
+          {children}
         </div>
       </main>
       <ToastHost />
@@ -250,11 +115,74 @@ function Shell() {
   );
 }
 
+function Root() {
+  return (
+    <Routes>
+      <Route path="/" element={<Landing />} />
+      <Route path="/pipeline" element={<Pipeline />} />
+      <Route
+        path="/workspace/engineering"
+        element={
+          <WorkspaceShell>
+            <Engineering />
+          </WorkspaceShell>
+        }
+      />
+      <Route
+        path="/workspace/model"
+        element={
+          <WorkspaceShell>
+            <ProjectGraph />
+          </WorkspaceShell>
+        }
+      />
+      <Route
+        path="/workspace/hmi"
+        element={
+          <WorkspaceShell>
+            <VirtualHmi />
+          </WorkspaceShell>
+        }
+      />
+      <Route
+        path="/workspace/validation"
+        element={
+          <WorkspaceShell>
+            <Validation />
+          </WorkspaceShell>
+        }
+      />
+      <Route
+        path="/workspace/review"
+        element={
+          <WorkspaceShell>
+            <Review />
+            <div className="mt-6 text-center">
+              <NavLink to="/tools/factory" className="text-xs text-[var(--text-dim)] hover:text-[var(--accent)] transition-colors-smooth">
+                Advanced: Synthetic Engineering Data Factory →
+              </NavLink>
+            </div>
+          </WorkspaceShell>
+        }
+      />
+      <Route
+        path="/tools/factory"
+        element={
+          <WorkspaceShell>
+            <DataFactory />
+          </WorkspaceShell>
+        }
+      />
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  );
+}
+
 export default function App() {
   return (
     <ProjectProvider>
       <HashRouter>
-        <Shell />
+        <Root />
       </HashRouter>
     </ProjectProvider>
   );

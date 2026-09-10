@@ -210,6 +210,17 @@ export interface SelfCorrectionResult {
   final_validation: ValidationResult;
 }
 
+export interface AutopilotResult {
+  project_id: string;
+  requirement: string;
+  plan: EngineeringPlan;
+  apply_log: ApplyLogEntry[];
+  validation: ValidationResult;
+  correction: SelfCorrectionResult | null;
+  summary: ProjectSummary;
+  mock_mode: boolean;
+}
+
 export const api = {
   loadProject: (project_id = "demo") =>
     req<{ project_id: string; summary: ProjectSummary }>("/projects/load", {
@@ -280,6 +291,13 @@ export const api = {
     ),
 
   downloadUrl: () => `${BASE}/export/download`,
+
+  // --- Autopilot (customer requirement -> full engineering pipeline) ---
+  autopilotRun: (requirement: string, project_id = "demo") =>
+    req<AutopilotResult>("/autopilot/run", {
+      method: "POST",
+      body: JSON.stringify({ project_id, requirement }),
+    }),
 
   health: () => req<{ status: string }>("/health"),
 
