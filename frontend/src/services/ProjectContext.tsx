@@ -1,5 +1,13 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
-import { api, type AutopilotResult, type Project, type ProjectSummary, type ValidationResult } from "./api";
+import {
+  api,
+  type EngineeringPlan,
+  type ApplyLogEntry,
+  type Project,
+  type ProjectSummary,
+  type SelfCorrectionResult,
+  type ValidationResult,
+} from "./api";
 
 export interface ActivityEntry {
   id: number;
@@ -19,16 +27,29 @@ interface ProjectContextValue {
   backendOnline: boolean | null; // null = not checked yet
   activity: ActivityEntry[];
   exported: boolean;
-  hasEngineeringActivity: boolean;
-  hasCorrectionActivity: boolean;
   hasSimulationActivity: boolean;
-  autopilotResult: AutopilotResult | null;
+
+  // Guided-journey state
+  requirement: string;
+  plan: EngineeringPlan | null;
+  planMockMode: boolean;
+  buildLog: ApplyLogEntry[] | null;
+  correction: SelfCorrectionResult | null;
+  built: boolean;
+  graphApproved: boolean;
+  maxStage: number;
+
   refreshProject: () => Promise<void>;
   refreshValidation: () => Promise<void>;
   setApproved: (v: boolean) => void;
   pushActivity: (stage: ActivityEntry["stage"], text: string) => void;
   setExported: (v: boolean) => void;
-  runAutopilot: (requirement: string) => Promise<AutopilotResult>;
+
+  startUnderstanding: (requirement: string) => Promise<EngineeringPlan>;
+  buildProject: () => Promise<void>;
+  setGraphApproved: (v: boolean) => void;
+  advanceStage: (n: number) => void;
+  resetJourney: () => void;
 }
 
 const Ctx = createContext<ProjectContextValue | null>(null);
@@ -43,7 +64,16 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   const [backendOnline, setBackendOnline] = useState<boolean | null>(null);
   const [activity, setActivity] = useState<ActivityEntry[]>([]);
   const [exported, setExported] = useState(false);
-  const [autopilotResult, setAutopilotResult] = useState<AutopilotResult | null>(null);
+
+  const [requirement, setRequirement] = useState("");
+  const [plan, setPlan] = useState<EngineeringPlan | null>(null);
+  const [planMockMode, setPlanMockMode] = useState(false);
+  const [buildLog, setBuildLog] = useState<ApplyLogEntry[] | null>(null);
+  const [correction, setCorrection] = useState<SelfCorrectionResult | null>(null);
+  const [built, setBuilt] = useState(false);
+  const [graphApproved, setGraphApproved] = useState(false);
+  const [maxStage, setMaxStage] = useState(1);
+
   const projectId = "demo";
   const initialized = useRef(false);
   const activityId = useRef(0);
@@ -63,6 +93,10 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   const pushActivity = useCallback((stage: ActivityEntry["stage"], text: string) => {
     activityId.current += 1;
     setActivity((prev) => [{ id: activityId.current, ts: Date.now(), stage, text }, ...prev].slice(0, 30));
+  }, []);
+
+  const advanceStage = useCallback((n: number) => {
+    setMaxStage((prev) => Math.max(prev, n));
   }, []);
 
   useEffect(() => {
@@ -92,54 +126,76 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     })();
   }, [refreshProject, refreshValidation]);
 
-  const runAutopilot = useCallback(
-    async (requirement: string) => {
+  const startUnderstanding = useCallback(
+    async (req: string) => {
+      setRequirement(req);
+      setPlan(null);
+      setBuildLog(null);
+      setCorrection(null);
+      setBuilt(false);
+      setGraphApproved(false);
       setExported(false);
       setApprovedState(false);
-      const result = await api.autopilotRun(requirement);
-      setAutopilotResult(result);
+
+      // A fresh journey always starts from the clean baseline project so
+      // re-runs (or a second requirement) don't inherit stale engineering.
+      await api.loadProject(projectId);
       await refreshProject();
-      setValidation(result.validation);
-      activityId.current += 1;
-      setActivity((prev) =>
-        [
-          {
-            id: activityId.current,
-            ts: Date.now(),
-            stage: "generate" as const,
-            text: `AI engineering complete: ${result.apply_log.filter((l) => l.status === "APPLIED").length}/${result.apply_log.length} action(s) applied for "${requirement.slice(0, 60)}${requirement.length > 60 ? "..." : ""}"`,
-          },
-          ...prev,
-        ].slice(0, 30)
-      );
-      if (result.correction) {
-        activityId.current += 1;
-        setActivity((prev) =>
-          [
-            {
-              id: activityId.current,
-              ts: Date.now(),
-              stage: "correction" as const,
-              text: `AI self-correction ran ${result.correction!.cycles.length} cycle(s) -- final status ${result.correction!.final_status}`,
-            },
-            ...prev,
-          ].slice(0, 30)
-        );
-      }
-      activityId.current += 1;
-      setActivity((prev) =>
-        [
-          { id: activityId.current, ts: Date.now(), stage: "simulation" as const, text: "Virtual machine simulation started" },
-          ...prev,
-        ].slice(0, 30)
-      );
-      return result;
+
+      const res = await api.plan(req, projectId);
+      setPlan(res.plan);
+      setPlanMockMode(res.mock_mode);
+      advanceStage(2);
+      pushActivity("plan", `AI understood the requirement: "${req.slice(0, 60)}${req.length > 60 ? "..." : ""}"`);
+      return res.plan;
     },
-    [refreshProject]
+    [refreshProject, advanceStage, pushActivity]
   );
 
-  const hasEngineeringActivity = activity.some((a) => a.stage === "generate");
-  const hasCorrectionActivity = activity.some((a) => a.stage === "correction");
+  const buildProject = useCallback(async () => {
+    if (!plan) throw new Error("No approved plan to build from");
+
+    const applyRes = await api.apply(plan, projectId);
+    setBuildLog(applyRes.log);
+    await refreshProject();
+
+    let val = await api.getValidation(projectId);
+    let corr: SelfCorrectionResult | null = null;
+    if (val.status !== "PASS") {
+      corr = await api.autofix(projectId);
+      setCorrection(corr);
+      val = corr.final_validation;
+    }
+    setValidation(val);
+
+    await api.simulationStart(projectId);
+
+    const appliedCount = applyRes.log.filter((l) => l.status === "APPLIED").length;
+    pushActivity("generate", `AI engineering complete: ${appliedCount}/${applyRes.log.length} action(s) applied`);
+    if (corr) {
+      pushActivity(
+        "correction",
+        `AI self-correction ran ${corr.cycles.length} cycle(s) -- final status ${corr.final_status}`
+      );
+    }
+    pushActivity("simulation", "Virtual machine simulation started");
+
+    setBuilt(true);
+    advanceStage(4);
+  }, [plan, refreshProject, advanceStage, pushActivity]);
+
+  const resetJourney = useCallback(() => {
+    setRequirement("");
+    setPlan(null);
+    setBuildLog(null);
+    setCorrection(null);
+    setBuilt(false);
+    setGraphApproved(false);
+    setExported(false);
+    setApprovedState(false);
+    setMaxStage(1);
+  }, []);
+
   const hasSimulationActivity = activity.some((a) => a.stage === "simulation");
 
   return (
@@ -155,16 +211,28 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         backendOnline,
         activity,
         exported,
-        hasEngineeringActivity,
-        hasCorrectionActivity,
         hasSimulationActivity,
-        autopilotResult,
+
+        requirement,
+        plan,
+        planMockMode,
+        buildLog,
+        correction,
+        built,
+        graphApproved,
+        maxStage,
+
         refreshProject,
         refreshValidation,
         setApproved: setApprovedState,
         pushActivity,
         setExported,
-        runAutopilot,
+
+        startUnderstanding,
+        buildProject,
+        setGraphApproved,
+        advanceStage,
+        resetJourney,
       }}
     >
       {children}

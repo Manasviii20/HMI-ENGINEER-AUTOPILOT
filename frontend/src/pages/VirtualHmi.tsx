@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Panel } from "../components/Panel";
 import { PlantScene } from "../components/PlantScene";
 import { api, simulationSocket, type SimulationConnection } from "../services/api";
@@ -72,7 +73,8 @@ function ObjectTile({
 }
 
 export function VirtualHmi() {
-  const { project, refreshValidation, pushActivity, hasSimulationActivity } = useProject();
+  const navigate = useNavigate();
+  const { project, refreshValidation, pushActivity, hasSimulationActivity, advanceStage } = useProject();
   const [activeScreen, setActiveScreen] = useState<string>("dashboard");
   const [tags, setTags] = useState<Record<string, unknown>>({});
   const [scenario, setScenario] = useState("NORMAL");
@@ -339,6 +341,18 @@ export function VirtualHmi() {
             )}
           </Panel>
         </div>
+      </div>
+
+      <div className="flex justify-end">
+        <button
+          onClick={() => {
+            advanceStage(6);
+            navigate("/workspace/validation");
+          }}
+          className="px-5 py-2.5 rounded bg-[var(--accent)] text-[#03121c] font-semibold text-sm hover:opacity-90 active:scale-95 transition-all duration-150"
+        >
+          Continue to Validation →
+        </button>
       </div>
     </div>
   );
