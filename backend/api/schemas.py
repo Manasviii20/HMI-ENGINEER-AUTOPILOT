@@ -29,3 +29,20 @@ class ApproveRequest(BaseModel):
 class BreakBindingRequest(BaseModel):
     project_id: str = "demo"
     object_id: str = "obj_motor_overview_gauge"
+
+
+class ScriptRequest(BaseModel):
+    project_id: str = "demo"
+    target_type: str  # "object" | "alarm" | "screen"
+    target_id: str
+
+
+class ImportTagsRequest(BaseModel):
+    project_id: str = "demo"
+    format: str = "csv"  # "csv" | "json"
+    content: str
+
+
+class MentorRequest(BaseModel):
+    project_id: str = "demo"
+    question: str

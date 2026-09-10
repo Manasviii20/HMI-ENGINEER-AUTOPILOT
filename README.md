@@ -213,26 +213,74 @@ This is explicitly a **Generated HMI Engineering Project Package** — a
 vendor-neutral structured representation used to demonstrate the workflow.
 It is **not** a native Schneider EOTE project file.
 
+## 11.5 Extended tool suite
+
+Five more tools, reachable from the "Tools" sub-nav, extend the core
+workflow. Each is scoped honestly to what this project can actually verify
+— see 12. Limitations for exactly what real EOTE access would additionally
+unlock for each.
+
+| Tool | What it does | Honest scope |
+|---|---|---|
+| **Builders** | Direct forms for creating alarms and navigation links, using the same deterministic executor as the AI planner (`POST /api/engineering/apply`) | Neutral schema, not a verified EOTE alarm-config/navigation-object field layout |
+| **Scripts** | Generates event-handler pseudocode per screen/alarm/object, grounded only in real tags | IEC 61131-3 Structured-Text *style* (a real, public, vendor-neutral standard) — **not** EOTE's proprietary scripting language/runtime |
+| **Migration** | Imports/exports a generic CSV or JSON tag list into the neutral project | Tag-metadata migration only — **not** a native EOTE project file migration |
+| **Mentor** | Grounded Q&A about *this* project — bindings, alarms, navigation, validation, self-correction, etc. Deterministic FAQ + live project status in mock mode; routes to the configured LLM (still snapshot-grounded) otherwise | Answers only from a fixed FAQ + this project's actual current state, never invented facts |
+| **System Log** | Records and analyzes this app's own simulator's live state-transition log (motor/conveyor/alarm field changes, scenario switches) | Real log from this process's real simulator — **not** a real PLC/machine fault log or Modbus register capture |
+
+Backend modules: `backend/scripts/script_generator.py`,
+`backend/migration/migration_assistant.py`, `backend/mentor/engineering_mentor.py`,
+`backend/simulator/log_analyzer.py`. 19 dedicated tests in
+`tests/test_new_features.py`.
+
 ## 12. Limitations
 
 - The neutral JSON project format is not a parser/writer for EOTE's actual
   proprietary project format — that structure has not been verified against
   official documentation in this MVP.
-- The mock LLM planner uses keyword/role matching, not true NLU. It is
-  deliberately simple and fully transparent — every action it proposes is
-  still re-validated deterministically before being applied.
+- The mock LLM planner uses fuzzy token matching against real project data,
+  not true NLU. It is deliberately transparent — every action it proposes is
+  still re-validated deterministically before being applied, and it reports
+  an `unknown` rather than inventing a fact (a tag, a threshold) it can't
+  ground.
 - Simulation is a small deterministic state machine with jitter, not a
   physics engine or digital twin.
 - Single in-memory project store (no database, no multi-user concurrency).
+- The Script Generator, Migration Assistant, and System Log Analyzer are
+  each scoped to what this project could verify without external access —
+  see the table above and the next section for exactly what's missing.
 
-## 13. Future EOTE adapter (not implemented)
+## 13. Future EOTE adapter, real scripting runtime, and real fault-log analysis (not implemented)
 
-A real Schneider EOTE import/export adapter is architecturally anticipated
-(`backend/hmi` already separates "generate against a project model" from
-"serialize a project model") but is **not implemented or verified** in this
-MVP. Building it would require validated access to EOTE's actual project
-file format/APIs. Until then, all claims here are scoped to the neutral
-representation.
+Closing the remaining gaps honestly requires external inputs this project
+was not given, not more engineering time on what's already here:
+
+1. **Real EOTE project file access** — an actual `.xxx` project export/
+   import format spec, SDK/API from Schneider, or at minimum a sample real
+   EOTE project file to reverse-engineer. Without this, native EOTE
+   migration and "real" EOTE project parsing/generation stay out of reach —
+   it's a data-access problem, not a time problem.
+2. **EOTE's scripting language/runtime spec** (syntax, object model,
+   available functions) plus an interpreter or the actual EOTE runtime to
+   test against — needed for the Script Generator to produce verifiably
+   correct EOTE scripts rather than neutral structured-text pseudocode.
+3. **A real machine/PLC tag list and communication protocol sample** (e.g.
+   a Modbus register map) — needed for the System Log Analyzer to work
+   against real fault logs rather than this project's own simulator log.
+4. **An actual EOTE alarm/navigation schema reference** (required fields
+   for their alarm config / navigation objects) — needed so the Alarm
+   Configuration Generator and Navigation Builder outputs resemble real
+   EOTE structures rather than this project's own neutral JSON schema.
+5. **More time** for a genuine Engineering Mentor UX (persistent chat
+   history, contextual teaching moments triggered by what the engineer is
+   doing) and a genuine multi-format Migration Assistant with per-target
+   format-conversion logic, beyond the CSV/JSON tag-list scope here.
+
+`backend/hmi` already separates "generate against a project model" from
+"serialize a project model" specifically so a real EOTE adapter could slot
+in later without a rewrite — but it is **not implemented or verified** in
+this MVP. Until items 1–4 above are available, all claims in this README
+are scoped to the neutral representation.
 
 ## 14. Project structure
 

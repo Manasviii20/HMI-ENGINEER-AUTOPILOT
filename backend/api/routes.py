@@ -5,9 +5,11 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
 
+from fastapi.responses import PlainTextResponse
+
 from backend.api.schemas import (
     LoadProjectRequest, PlanRequest, ApplyRequest, ScenarioRequest,
-    ApproveRequest, BreakBindingRequest,
+    ApproveRequest, BreakBindingRequest, ScriptRequest, ImportTagsRequest, MentorRequest,
 )
 from backend.api import store
 from backend.parser.project_parser import parse_project_dict, summarize
@@ -21,6 +23,10 @@ from backend.ai.llm_client import llm_client
 from backend.ai.impact_analyzer import analyze_impact
 from backend.graph.project_graph import ProjectGraph
 from backend.simulator.machine import simulator
+from backend.simulator.log_analyzer import analyze_log
+from backend.scripts.script_generator import generate_script
+from backend.migration.migration_assistant import export_tags_csv, import_tags_csv, import_tags_json
+from backend.mentor.engineering_mentor import ask_mentor
 
 router = APIRouter(prefix="/api")
 
@@ -218,3 +224,86 @@ def download_export():
     if not zip_path.exists():
         raise HTTPException(404, "No export found; call /api/export first")
     return FileResponse(zip_path, filename=zip_path.name, media_type="application/zip")
+
+
+# --- Script Generator ------------------------------------------------------
+
+@router.post("/scripts/generate")
+def scripts_generate(req: ScriptRequest):
+    try:
+        project = store.get_project(req.project_id)
+    except KeyError as e:
+        raise HTTPException(404, str(e))
+    try:
+        return generate_script(project, req.target_type, req.target_id)
+    except ValueError as e:
+        raise HTTPException(404, str(e))
+
+
+@router.get("/scripts/targets")
+def scripts_targets(project_id: str = "demo"):
+    """Lists valid (target_type, target_id) options the generator can run against."""
+    try:
+        project = store.get_project(project_id)
+    except KeyError as e:
+        raise HTTPException(404, str(e))
+    objects = [
+        {"target_type": "object", "target_id": o.id, "label": f"{s.name} / {o.label or o.id} ({o.object_type})"}
+        for s in project.screens for o in s.objects
+    ]
+    alarms = [{"target_type": "alarm", "target_id": a.id, "label": a.name} for a in project.alarms]
+    screens = [{"target_type": "screen", "target_id": s.id, "label": s.name} for s in project.screens]
+    return {"objects": objects, "alarms": alarms, "screens": screens}
+
+
+# --- Migration Assistant ----------------------------------------------------
+
+@router.get("/migration/export-tags")
+def migration_export_tags(project_id: str = "demo"):
+    try:
+        project = store.get_project(project_id)
+    except KeyError as e:
+        raise HTTPException(404, str(e))
+    return PlainTextResponse(export_tags_csv(project), media_type="text/csv")
+
+
+@router.post("/migration/import-tags")
+def migration_import_tags(req: ImportTagsRequest):
+    try:
+        project = store.get_project(req.project_id)
+    except KeyError as e:
+        raise HTTPException(404, str(e))
+    try:
+        if req.format == "json":
+            result = import_tags_json(project, req.content)
+        else:
+            result = import_tags_csv(project, req.content)
+    except ValueError as e:
+        raise HTTPException(422, str(e))
+    store.set_project(req.project_id, project, unapprove=True)
+    return {**result, "summary": summarize(project)}
+
+
+# --- Engineering Mentor ------------------------------------------------------
+
+@router.post("/mentor/ask")
+def mentor_ask(req: MentorRequest):
+    try:
+        project = store.get_project(req.project_id)
+    except KeyError as e:
+        raise HTTPException(404, str(e))
+    if not req.question.strip():
+        raise HTTPException(422, "question must not be empty")
+    return ask_mentor(req.question, project)
+
+
+# --- System Log Analyzer ----------------------------------------------------
+
+@router.get("/logs")
+def get_logs(limit: int = 50):
+    return {"events": list(simulator.log)[-limit:], "total": len(simulator.log)}
+
+
+@router.get("/logs/analyze")
+def analyze_logs():
+    return analyze_log(list(simulator.log))

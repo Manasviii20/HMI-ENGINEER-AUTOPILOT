@@ -6,7 +6,11 @@ just a small, demoable, deterministic model of machine state + scenarios.
 import asyncio
 import random
 import time
+from collections import deque
 from typing import Callable, Awaitable
+
+BOOL_FIELDS = ("motor_running", "overload", "emergency_stop", "communication", "conveyor_running", "product_sensor")
+LOG_MAX_EVENTS = 300
 
 DEFAULT_STATE = {
     "motor_running": True,
@@ -60,12 +64,32 @@ class MachineSimulator:
         self.scenario = "NORMAL"
         self._task: asyncio.Task | None = None
         self._subscribers: list[Callable[[dict], Awaitable[None]]] = []
+        # Real event log of this simulator's own state transitions -- not
+        # synthetic/fabricated data, it's generated live by this process.
+        self.log: deque = deque(maxlen=LOG_MAX_EVENTS)
+        self._prev_bool_state: dict = {k: DEFAULT_STATE[k] for k in BOOL_FIELDS}
+
+    def _record_transitions(self, state: dict) -> None:
+        for field in BOOL_FIELDS:
+            new_val = state.get(field)
+            if self._prev_bool_state.get(field) != new_val:
+                self.log.append({
+                    "timestamp": time.time(), "field": field,
+                    "from": self._prev_bool_state.get(field), "to": new_val,
+                    "scenario": self.scenario,
+                })
+        self._prev_bool_state = {k: state.get(k) for k in BOOL_FIELDS}
 
     def set_scenario(self, name: str) -> dict:
         if name not in SCENARIOS:
             raise ValueError(f"Unknown scenario '{name}'")
         self.scenario = name
         self.state = dict(SCENARIOS[name])
+        self.log.append({
+            "timestamp": time.time(), "field": "scenario", "from": None, "to": name,
+            "scenario": name,
+        })
+        self._record_transitions(self.state)
         return self.state
 
     def tick(self) -> dict:
@@ -85,6 +109,7 @@ class MachineSimulator:
         state["product_sensor"] = base["product_sensor"]
         state["emergency_stop"] = base["emergency_stop"]
         state["communication"] = base["communication"]
+        self._record_transitions(state)
         self.state = state
         return self.state
 

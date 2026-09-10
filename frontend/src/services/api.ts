@@ -54,6 +54,24 @@ async function req<T>(path: string, opts?: RequestInit): Promise<T> {
   return parsed as T;
 }
 
+async function reqText(path: string, opts?: RequestInit): Promise<string> {
+  let res: Response;
+  try {
+    res = await fetch(`${BASE}${path}`, opts);
+  } catch (e) {
+    const msg = friendlyMessage(e);
+    pushToast("error", msg);
+    throw new Error(msg);
+  }
+  const text = await res.text().catch(() => "");
+  if (!res.ok) {
+    const msg = `${path} failed (${res.status}): ${text || res.statusText}`;
+    pushToast("error", msg);
+    throw new Error(msg);
+  }
+  return text;
+}
+
 export interface Tag {
   name: string;
   data_type: string;
@@ -258,7 +276,65 @@ export const api = {
   downloadUrl: () => `${BASE}/export/download`,
 
   health: () => req<{ status: string }>("/health"),
+
+  // --- Script Generator ---
+  scriptTargets: (project_id = "demo") =>
+    req<ScriptTargets>(`/scripts/targets?project_id=${project_id}`),
+
+  generateScript: (target_type: string, target_id: string, project_id = "demo") =>
+    req<{ language: string; code: string }>("/scripts/generate", {
+      method: "POST",
+      body: JSON.stringify({ project_id, target_type, target_id }),
+    }),
+
+  // --- Migration Assistant ---
+  exportTagsCsv: (project_id = "demo") => reqText(`/migration/export-tags?project_id=${project_id}`),
+
+  importTags: (content: string, format: "csv" | "json", project_id = "demo") =>
+    req<{ added: string[]; skipped: { row: number; name?: string; reason: string }[]; added_count: number; skipped_count: number; summary: ProjectSummary }>(
+      "/migration/import-tags",
+      { method: "POST", body: JSON.stringify({ project_id, format, content }) }
+    ),
+
+  // --- Engineering Mentor ---
+  askMentor: (question: string, project_id = "demo") =>
+    req<{ answer: string; mock_mode: boolean }>("/mentor/ask", {
+      method: "POST",
+      body: JSON.stringify({ project_id, question }),
+    }),
+
+  // --- System Log Analyzer ---
+  getLogs: (limit = 50) => req<{ events: LogEvent[]; total: number }>(`/logs?limit=${limit}`),
+
+  analyzeLogs: () => req<LogAnalysis>("/logs/analyze"),
 };
+
+export interface ScriptTargetOption {
+  target_type: "object" | "alarm" | "screen";
+  target_id: string;
+  label: string;
+}
+export interface ScriptTargets {
+  objects: ScriptTargetOption[];
+  alarms: ScriptTargetOption[];
+  screens: ScriptTargetOption[];
+}
+
+export interface LogEvent {
+  timestamp: number;
+  field: string;
+  from: unknown;
+  to: unknown;
+  scenario: string;
+}
+export interface LogAnalysis {
+  total_events: number;
+  field_counts: Record<string, number>;
+  fault_event_count: number;
+  fault_events: LogEvent[];
+  scenario_change_count: number;
+  recent_events: LogEvent[];
+}
 
 export interface SimulationConnection {
   close: () => void;
