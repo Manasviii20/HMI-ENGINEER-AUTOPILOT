@@ -44,6 +44,10 @@ SCENARIOS = {
         "motor_running": True, "speed": 72.0, "temperature": 56.0, "overload": False,
         "conveyor_running": True, "product_sensor": True, "emergency_stop": False, "communication": False,
     },
+    "SENSOR_FAILURE": {
+        "motor_running": True, "speed": 72.0, "temperature": 56.0, "overload": False,
+        "conveyor_running": True, "product_sensor": False, "emergency_stop": False, "communication": True,
+    },
 }
 
 TAG_MAP = {

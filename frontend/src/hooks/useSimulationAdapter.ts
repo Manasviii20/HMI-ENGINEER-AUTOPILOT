@@ -1,0 +1,157 @@
+import { useEffect, useMemo, useRef, useState } from "react";
+import { api, simulationSocket, type LogEvent, type SimulationConnection } from "../services/api";
+import { useProject } from "../services/ProjectContext";
+
+/**
+ * Adapter that reshapes this project's own data sources (the simulation
+ * websocket, the tag/alarm model, the backend event log) into the exact
+ * `{ state, startSimulation, stopSimulation, injectFault, addEvent }` shape
+ * the simulation page's visualization code expects -- so that code can be
+ * dropped in unmodified instead of being rewritten against this app's
+ * plumbing.
+ */
+export type FaultScenario =
+  | "NORMAL"
+  | "HIGH_TEMPERATURE"
+  | "MOTOR_OVERLOAD"
+  | "SENSOR_FAILURE"
+  | "EMERGENCY_STOP"
+  | "COMMUNICATION_LOSS";
+
+export interface MachineState {
+  speed: number;
+  temperature: number;
+  motorRunning: boolean;
+  overload: boolean;
+  emergencyStop: boolean;
+  communication: boolean;
+  productDetected: boolean;
+  activeAlarms: string[];
+  activeFault: FaultScenario;
+}
+
+export interface SimEvent {
+  id: string;
+  timestamp: string;
+  source: "SIMULATOR" | "FAULT_INJ" | "ALARM_MGR";
+  level: "success" | "error" | "warning" | "info";
+  message: string;
+}
+
+function toSimEvent(e: LogEvent, i: number): SimEvent {
+  const timestamp = new Date(e.timestamp * 1000).toLocaleTimeString();
+
+  if (e.field === "scenario") {
+    return { id: `${e.timestamp}-${i}`, timestamp, source: "FAULT_INJ", level: "info", message: `Scenario changed to ${e.scenario}` };
+  }
+
+  const badFields = new Set(["overload", "emergency_stop"]);
+  const wentBad = badFields.has(e.field) && e.to === true;
+  const commLost = e.field === "communication" && e.to === false;
+  const motorStopped = e.field === "motor_running" && e.to === false;
+  const recovered = (badFields.has(e.field) && e.to === false) || (e.field === "communication" && e.to === true);
+
+  const level: SimEvent["level"] = wentBad || commLost ? "error" : motorStopped ? "warning" : recovered ? "success" : "info";
+  const source: SimEvent["source"] = wentBad || commLost ? "ALARM_MGR" : "SIMULATOR";
+
+  return {
+    id: `${e.timestamp}-${i}`,
+    timestamp,
+    source,
+    level,
+    message: `${e.field} ${JSON.stringify(e.from)} -> ${JSON.stringify(e.to)}`,
+  };
+}
+
+export function useSimulationAdapter() {
+  const { project, refreshValidation } = useProject();
+  const [tags, setTags] = useState<Record<string, unknown>>({});
+  const [scenario, setScenario] = useState<FaultScenario>("NORMAL");
+  const [isSimRunning, setIsSimRunning] = useState(false);
+  const [events, setEvents] = useState<SimEvent[]>([]);
+  const connRef = useRef<SimulationConnection | null>(null);
+
+  useEffect(() => {
+    const conn = simulationSocket((data) => {
+      setTags(data.tags ?? {});
+      setScenario((data.scenario as FaultScenario) ?? "NORMAL");
+    });
+    connRef.current = conn;
+    return () => conn.close();
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function poll() {
+      try {
+        const res = await api.getLogs(50);
+        if (cancelled) return;
+        setEvents(res.events.map(toSimEvent).reverse());
+      } catch {
+        /* toasted globally by api.ts */
+      }
+    }
+    poll();
+    const t = setInterval(poll, 2000);
+    return () => {
+      cancelled = true;
+      clearInterval(t);
+    };
+  }, []);
+
+  const activeAlarms = useMemo(() => {
+    if (!project) return [];
+    return project.alarms
+      .filter((a) => {
+        const v = tags[a.tag];
+        if (v === undefined) return false;
+        const val = typeof v === "boolean" ? (v ? 1 : 0) : (v as number);
+        if (a.condition === "GT") return val > a.threshold;
+        if (a.condition === "LT") return val < a.threshold;
+        if (a.condition === "EQ") return val === a.threshold;
+        if (a.condition === "NEQ") return val !== a.threshold;
+        return false;
+      })
+      .map((a) => a.name);
+  }, [project, tags]);
+
+  const machineState: MachineState = {
+    speed: typeof tags["Motor_01_Speed"] === "number" ? (tags["Motor_01_Speed"] as number) : 0,
+    temperature: typeof tags["Motor_01_Temperature"] === "number" ? (tags["Motor_01_Temperature"] as number) : 0,
+    motorRunning: tags["Motor_01_Run"] === true,
+    overload: tags["Motor_01_Overload"] === true,
+    emergencyStop: tags["Emergency_Stop"] === true,
+    communication: tags["PLC_Communication"] === true,
+    productDetected: tags["Product_Sensor"] === true,
+    activeAlarms,
+    activeFault: scenario,
+  };
+
+  async function startSimulation() {
+    await api.simulationStart();
+    setIsSimRunning(true);
+  }
+
+  async function stopSimulation() {
+    await api.simulationStop();
+    setIsSimRunning(false);
+  }
+
+  async function injectFault(id: FaultScenario) {
+    await api.simulationScenario(id);
+    setIsSimRunning(true);
+    await refreshValidation();
+  }
+
+  function addEvent() {
+    /* events are derived automatically from the backend's own transition log */
+  }
+
+  return {
+    state: { machineState, isSimRunning, events },
+    startSimulation,
+    stopSimulation,
+    injectFault,
+    addEvent,
+  };
+}

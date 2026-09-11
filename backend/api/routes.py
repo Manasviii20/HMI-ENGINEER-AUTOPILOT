@@ -146,6 +146,12 @@ async def simulation_start(req: ApproveRequest):
     return {"status": "STARTED", "state": simulator.state}
 
 
+@router.post("/simulation/stop")
+async def simulation_stop(req: ApproveRequest):
+    simulator.stop()
+    return {"status": "STOPPED", "state": simulator.state}
+
+
 @router.post("/simulation/scenario")
 def simulation_scenario(req: ScenarioRequest):
     try:

@@ -262,6 +262,12 @@ export const api = {
       body: JSON.stringify({ project_id }),
     }),
 
+  simulationStop: (project_id = "demo") =>
+    req<{ status: string; state: Record<string, unknown> }>("/simulation/stop", {
+      method: "POST",
+      body: JSON.stringify({ project_id }),
+    }),
+
   simulationScenario: (scenario: string, project_id = "demo") =>
     req<{ scenario: string; state: Record<string, unknown>; tags: Record<string, unknown> }>(
       "/simulation/scenario",
