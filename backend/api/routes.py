@@ -1,4 +1,5 @@
 import json
+import os
 import zipfile
 from pathlib import Path
 
@@ -32,8 +33,12 @@ from backend.factory.runner import run_factory
 
 router = APIRouter(prefix="/api")
 
-GENERATED_DIR = Path(__file__).resolve().parent.parent.parent / "generated"
-GENERATED_DIR.mkdir(exist_ok=True)
+# Serverless platforms (Vercel) ship a read-only filesystem except /tmp --
+# write generated exports there instead of into the repo checkout.
+GENERATED_DIR = Path("/tmp/hmi_generated") if os.environ.get("VERCEL") else (
+    Path(__file__).resolve().parent.parent.parent / "generated"
+)
+GENERATED_DIR.mkdir(parents=True, exist_ok=True)
 
 
 @router.post("/projects/load")
